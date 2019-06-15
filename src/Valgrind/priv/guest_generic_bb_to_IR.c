@@ -299,16 +299,18 @@ IRSB* bb_to_IR (
 			   unsigned char *align_address = pap->t_page_addr + pap->Surplus - 0x10;
 			   unsigned char *now_address = pap->t_page_addr + delta;
 			   *(__m128i*)(pap->swap) = *(__m128i*)(align_address);
-			   *(__m128i*)(pap->swap + 16) = *(__m128i*)(pap->n_page_mem);
+			   *(__m128i*)(pap->swap + 16) = *(__m128i*)(pap->n_page_mem(pap));
+               //delta = (pap->swap + (now_address - align_address)) - guest_code;
 			   guest_code = (unsigned char *)(pap->swap + (now_address - align_address)) - delta;
 		   }
 	   }
 	   else if (pap->start_swap == 1) {
-		   unsigned char offset = ((delta + guest_code) - pap->swap);
+           unsigned char offset = ((delta + guest_code) - pap->swap);
 		   if (offset >= 16) {
 			   pap->start_swap = 2;
 			   vassert((offset <= 32));
-			   guest_code = pap->n_page_mem - delta + (offset - 16);
+               //delta = pap->n_page_mem(pap) + (offset - 16) - guest_code;
+               guest_code = pap->n_page_mem(pap) + (offset - 16) - delta ;
 		   }
 	   }
 

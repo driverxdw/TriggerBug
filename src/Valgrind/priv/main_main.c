@@ -586,6 +586,9 @@ IRSB* LibVEX_FrontEnd ( /*MOD*/ VexTranslateArgs* vta,
 
    vexAllocSanityCheck();
 
+   //return irsb;
+   //ppIRSB(irsb);
+
    if (irsb == NULL) {
       /* Access failure. */
       vexSetAllocModeTEMP_and_clear();
@@ -633,6 +636,7 @@ IRSB* LibVEX_FrontEnd ( /*MOD*/ VexTranslateArgs* vta,
                               vta->guest_bytes_addr,
                               vta->arch_guest );
 
+   //ppIRSB(irsb);
    // JRS 2016 Aug 03: Sanity checking is expensive, we already checked
    // the output of the front end, and iropt never screws up the IR by
    // itself, unless it is being hacked on.  So remove this post-iropt

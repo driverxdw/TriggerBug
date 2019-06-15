@@ -47,9 +47,11 @@ typedef struct {
 	unsigned short Surplus;
 	unsigned char swap[32];
 	unsigned char *t_page_addr;
-	unsigned char *n_page_mem;
+    unsigned long long guest_addr;
+    unsigned char * (*n_page_mem)(void *);
 	char start_swap;
 	unsigned int guest_max_insns;
+    void *state;
 } Pap;
 
 #define MAX_THREADS 16

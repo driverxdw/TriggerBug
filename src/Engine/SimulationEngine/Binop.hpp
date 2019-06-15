@@ -12,37 +12,28 @@
 #include <dvec.h>
 
 
-typedef __m128i XMM;
-#define xmbshl(x,n)  _mm_slli_si128(x,n) // xm <<= 8*n  -- BYTE shift left
-#define xmbshr(x,n)  _mm_srli_si128(x,n) // xm >>= 8*n  -- BYTE shift right
-#define xmshl64(x,n) _mm_slli_epi64(x,n) // xm.hi <<= n, xm.lo <<= n
-#define xmshr64(x,n) _mm_srli_epi64(x,n) // xm.hi >>= n, xm.lo >>= n
-#define xmand(a,b)   _mm_and_si128(a,b)
-#define xmor(a,b)    _mm_or_si128(a,b)
-#define xmxor(a,b)   _mm_xor_si128(a,b)
-#define xmzero       _mm_setzero_si128()
 
 
 #define caseIop_Arithmetic(OPNAME, OP, issigned) 												\
 case Iop_##OPNAME##8:{																			\
 	vassert(a.bitn == 8); 																		\
 	vassert(b.bitn == 8);																		\
-	return Vns(m_ctx, (issigned##Char)(((issigned##Char)a)  OP  ((issigned##Char)b)));			\
+	return Vns(m_ctx, (issigned##Char)(((issigned##Char)a)  OP  ((issigned##Char)b)),8);		\
 }																								\
 case Iop_##OPNAME##16:{																			\
 	vassert(a.bitn == 16); 																		\
 	vassert(b.bitn == 16);																		\
-	return Vns(m_ctx, (issigned##Short)(((issigned##Short)a)  OP  ((issigned##Short)b)));		\
+	return Vns(m_ctx, (issigned##Short)(((issigned##Short)a)  OP  ((issigned##Short)b)),16);	\
 }																								\
 case Iop_##OPNAME##32:{																			\
 	vassert(a.bitn == 32); 																		\
 	vassert(b.bitn == 32);																		\
-	return Vns(m_ctx, (issigned##Int)(((issigned##Int)a)  OP  ((issigned##Int)b)));				\
+	return Vns(m_ctx, (issigned##Int)(((issigned##Int)a)  OP  ((issigned##Int)b)),32);			\
 }																								\
 case Iop_##OPNAME##64:{																			\
 	vassert(a.bitn == 64); 																		\
 	vassert(b.bitn == 64);																		\
-	return Vns(m_ctx, (issigned##Long)(((issigned##Long)a)  OP  ((issigned##Long)b)));			\
+	return Vns(m_ctx, (issigned##Long)(((issigned##Long)a)  OP  ((issigned##Long)b)),64);		\
 }
 
 #define caseIop_Relational_Low(OPNAME, OP, issigned) 											\
@@ -96,22 +87,22 @@ case Iop_##OPNAME##64:{																			\
 case Iop_##OPNAME##8:{																			\
 	vassert(a.bitn == 8); 																		\
 	vassert(b.bitn == 8);																		\
-	return Vns(m_ctx, (issigned##Char)(((issigned##Char)a)  OP  ((issigned##Char)b)));			\
+	return Vns(m_ctx, (issigned##Char)(((issigned##Char)a)  OP  ((issigned##Char)b)),8);		\
 }																								\
 case Iop_##OPNAME##16:{																			\
 	vassert(a.bitn == 16); 																		\
 	vassert(b.bitn == 8);																		\
-	return Vns(m_ctx, (issigned##Short)(((issigned##Short)a)  OP  ((issigned##Char)b)));		\
+	return Vns(m_ctx, (issigned##Short)(((issigned##Short)a)  OP  ((issigned##Char)b)),16);		\
 }																								\
 case Iop_##OPNAME##32:{																			\
 	vassert(a.bitn == 32); 																		\
 	vassert(b.bitn == 8);																		\
-	return Vns(m_ctx, (issigned##Int)(((issigned##Int)a)  OP  ((issigned##Char)b)));			\
+	return Vns(m_ctx, (issigned##Int)(((issigned##Int)a)  OP  ((issigned##Char)b)),32);			\
 }																								\
 case Iop_##OPNAME##64:{																			\
 	vassert(a.bitn == 64); 																		\
 	vassert(b.bitn == 8);																		\
-	return Vns(m_ctx, (issigned##Long)(((issigned##Long)a)  OP  ((issigned##Char)b)));			\
+	return Vns(m_ctx, (issigned##Long)(((issigned##Long)a)  OP  ((issigned##Char)b)),64);		\
 }																								\
 
 
@@ -216,6 +207,7 @@ inline Vns State::T_Binop(IROp op, IRExpr* arg1, IRExpr* arg2) {
 		caseIop_Arithmetic(Add, +, U);
 		caseIop_Arithmetic(Sub, -, U);
 		caseIop_Arithmetic(Mul, *, U);
+					
 	case Iop_DivU32:{															
 		vassert(a.bitn == 32);
 		vassert(b.bitn == 32);
@@ -580,7 +572,7 @@ dosymbol:
 		
 		return Vns(m_ctx,
 			Z3_mk_concat(m_ctx,
-			(a % beichushu).extract(63, 0) - ite(lt(a, 0), b, Vns(0ull, 64)),
+			(a % beichushu).extract(63, 0) - ite(lt(a, 0), b, Vns(m_ctx, 0ull, 64)),
 				expr(m_ctx, Z3_mk_bvsdiv(m_ctx, a, beichushu)).extract(63, 0)
 			), 128);
 	}
@@ -601,7 +593,7 @@ dosymbol:
 		Vns beichushu = b.zext(32);
 		return Vns(m_ctx,
 			Z3_mk_concat(m_ctx,
-			(a % beichushu).extract(31, 0) - ite(lt(a, 0), b, Vns(0ull, 32)),
+			(a % beichushu).extract(31, 0) - ite(lt(a, 0), b, Vns(m_ctx, 0ull, 32)),
 				Vns(m_ctx, Z3_mk_bvsdiv(m_ctx, a, beichushu), 64).extract(31, 0)
 			), 64);
 	}

@@ -1,5 +1,4 @@
 #pragma once
-#include "engine.hpp"
 
 
 namespace helper {
@@ -9,34 +8,34 @@ namespace helper {
 	class _VexGuestAMD64State;
 
 	template<typename _PoinerType>
-	void operator_set(MEM &obj, Vns const &_where, _PoinerType data) {
+	static inline void operator_set(MEM &obj, Vns const &_where, _PoinerType data) {
 		obj.Ist_Store(_where, data);
 	}
 	
 	template<int maxlength,typename _PoinerType>
-	void operator_set(Register<maxlength> &obj, Vns const &_where, _PoinerType data) {
+	static inline void operator_set(Register<maxlength> &obj, Vns const &_where, _PoinerType data) {
 		assert(_where.real());
 		obj.Ist_Put(_where, data);
 	}
 
-	void operator_set(MEM &obj, Vns const &_where, Vns const &data) {
+	static inline void operator_set(MEM &obj, Vns const &_where, Vns const &data) {
 		obj.Ist_Store(_where, data);
 	}
 
 	template<int maxlength>
-	void operator_set(Register<maxlength> &obj, Vns const &_where, Vns const &data) {
+	static inline void operator_set(Register<maxlength> &obj, Vns const &_where, Vns const &data) {
 		assert(_where.real());
 		obj.Ist_Put(_where, data);
 	}
 
 
 	template<int bitn>
-	Vns operator_get(MEM &obj, Vns const &_where) {
+	static inline Vns operator_get(MEM &obj, Vns const &_where) {
 		return obj.Iex_Load<((IRType)bitn)>(_where);
 	}
 
 	template<int bitn>
-	Vns  operator_get(Register<1000> &obj, Vns const &_where) {
+	static inline Vns operator_get(Register<1000> &obj, Vns const &_where) {
 		assert(_where.real());
 		return obj.Iex_Get<((IRType)bitn)>(_where);
 	}
@@ -66,7 +65,7 @@ namespace helper {
 
 	template<class _object, typename _PointerType = UChar, int offset = -1>
 	class inPointer {
-		template<class __object, typename __PointerType = UChar, int _offset = -1>
+		template<class __object, typename __PointerType = UChar, int _offset>
 		friend class Pointer;
 		friend class _VexGuestAMD64State;
 	public:
@@ -204,8 +203,7 @@ namespace helper {
 		inPointer_operator(<<);
 		inPointer_operator(|);
 		inPointer_operator(&);
-
-
+		inPointer_operator(==);
 
 
 #undef inPointer_operator
@@ -447,8 +445,25 @@ namespace _AMD64State {
 
 }
 
+class Guest_State {
+	State *state;
+public:
+	Guest_State(State &state):
+		state(&state)
+	{
 
-class _VexGuestAMD64State {
+	}
+	operator MEM &() {
+		return state->mem;
+	}
+	template<int len>
+	operator Register<len> &() {
+		return state->regs;
+	}
+};
+
+
+class _VexGuestAMD64State:public Guest_State {
 public:
 	/* Event check fail addr, counter, and padding to make RAX 16
 	 aligned. */
@@ -568,68 +583,68 @@ public:
 	_AMD64State::guest_IP_AT_SYSCALL guest_IP_AT_SYSCALL;
 
 public:
-	template<int maxlength>
-	_VexGuestAMD64State(Register<maxlength> &obj):
-		host_EvC_FAILADDR(obj),
-		host_EvC_COUNTER(obj),
-		pad0(obj),
-		pad1(obj),
-		pad2(obj),
-		guest_RAX(obj),
-		guest_RCX(obj),
-		guest_RDX(obj),
-		guest_RBX(obj),
-		guest_RSP(obj),
-		guest_RBP(obj),
-		guest_RSI(obj),
-		guest_RDI(obj),
-		guest_R8(obj),
-		guest_R9(obj),
-		guest_R10(obj),
-		guest_R11(obj),
-		guest_R12(obj),
-		guest_R13(obj),
-		guest_R14(obj),
-		guest_R15(obj),
-		guest_CC_OP(obj),
-		guest_CC_DEP1(obj),
-		guest_CC_DEP2(obj),
-		guest_CC_NDEP(obj),
-		guest_DFLAG(obj),
-		guest_RIP(obj),
-		guest_ACFLAG(obj),
-		guest_IDFLAG(obj),
-		guest_FS_CONST(obj),
-		guest_SSEROUND(obj),
-		guest_YMM0(obj),
-		guest_YMM1(obj),
-		guest_YMM2(obj),
-		guest_YMM3(obj),
-		guest_YMM4(obj),
-		guest_YMM5(obj),
-		guest_YMM6(obj),
-		guest_YMM7(obj),
-		guest_YMM8(obj),
-		guest_YMM9(obj),
-		guest_YMM10(obj),
-		guest_YMM11(obj),
-		guest_YMM12(obj),
-		guest_YMM13(obj),
-		guest_YMM14(obj),
-		guest_YMM15(obj),
-		guest_YMM16(obj),
-		guest_FTOP(obj),
-		guest_FPREG(obj),
-		guest_FPTAG(obj),
-		guest_FPROUND(obj),
-		guest_FC3210(obj),
-		guest_EMNOTE(obj),
-		guest_CMSTART(obj),
-		guest_CMLEN(obj),
-		guest_NRADDR(obj),
-		guest_SC_CLASS(obj),
-		guest_GS_CONST(obj),
-		guest_IP_AT_SYSCALL(obj)
+	_VexGuestAMD64State(State &state):
+		Guest_State(state),
+		host_EvC_FAILADDR(state.regs),
+		host_EvC_COUNTER(state.regs),
+		pad0(state.regs),
+		pad1(state.regs),
+		pad2(state.regs),
+		guest_RAX(state.regs),
+		guest_RCX(state.regs),
+		guest_RDX(state.regs),
+		guest_RBX(state.regs),
+		guest_RSP(state.regs),
+		guest_RBP(state.regs),
+		guest_RSI(state.regs),
+		guest_RDI(state.regs),
+		guest_R8(state.regs),
+		guest_R9(state.regs),
+		guest_R10(state.regs),
+		guest_R11(state.regs),
+		guest_R12(state.regs),
+		guest_R13(state.regs),
+		guest_R14(state.regs),
+		guest_R15(state.regs),
+		guest_CC_OP(state.regs),
+		guest_CC_DEP1(state.regs),
+		guest_CC_DEP2(state.regs),
+		guest_CC_NDEP(state.regs),
+		guest_DFLAG(state.regs),
+		guest_RIP(state.regs),
+		guest_ACFLAG(state.regs),
+		guest_IDFLAG(state.regs),
+		guest_FS_CONST(state.regs),
+		guest_SSEROUND(state.regs),
+		guest_YMM0(state.regs),
+		guest_YMM1(state.regs),
+		guest_YMM2(state.regs),
+		guest_YMM3(state.regs),
+		guest_YMM4(state.regs),
+		guest_YMM5(state.regs),
+		guest_YMM6(state.regs),
+		guest_YMM7(state.regs),
+		guest_YMM8(state.regs),
+		guest_YMM9(state.regs),
+		guest_YMM10(state.regs),
+		guest_YMM11(state.regs),
+		guest_YMM12(state.regs),
+		guest_YMM13(state.regs),
+		guest_YMM14(state.regs),
+		guest_YMM15(state.regs),
+		guest_YMM16(state.regs),
+		guest_FTOP(state.regs),
+		guest_FPREG(state.regs),
+		guest_FPTAG(state.regs),
+		guest_FPROUND(state.regs),
+		guest_FC3210(state.regs),
+		guest_EMNOTE(state.regs),
+		guest_CMSTART(state.regs),
+		guest_CMLEN(state.regs),
+		guest_NRADDR(state.regs),
+		guest_SC_CLASS(state.regs),
+		guest_GS_CONST(state.regs),
+		guest_IP_AT_SYSCALL(state.regs)
 	{
 
 	}

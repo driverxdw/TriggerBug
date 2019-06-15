@@ -1,10 +1,13 @@
 from .z3 import z3types
 from .TriggerBugTypes import *
 def init_engine_api(EngineLib):
-    EngineLib.StateCtx.argtypes = [StateObj]
-    EngineLib.StateCtx.restype = z3types.ContextObj
-    EngineLib.state_solver.argtypes = [StateObj]
-    EngineLib.state_solver.restype = z3types.SolverObj
+    EngineLib.TB_state_ctx.argtypes = [StateObj]
+    EngineLib.TB_state_ctx.restype = z3types.ContextObj
+
+    EngineLib.TB_state_solver.argtypes = [StateObj]
+    EngineLib.TB_state_solver.restype = z3types.SolverObj
+
+    EngineLib.TB_state_add_assert.argtypes = [StateObj, z3types.Ast, ctypes.c_char]
 
     EngineLib.regs_r_write1.argtypes = [StateObj, ctypes.c_uint16, ctypes.c_uint8]
     EngineLib.regs_r_write2.argtypes = [StateObj, ctypes.c_uint16, ctypes.c_uint16]
@@ -63,5 +66,3 @@ def init_engine_api(EngineLib):
     EngineLib.mem_s_read2.restype = z3types.Ast
     EngineLib.mem_s_read4.restype = z3types.Ast
     EngineLib.mem_s_read8.restype = z3types.Ast
-
-    EngineLib.state_add_assert.argtypes = [StateObj, z3types.Ast, ctypes.c_char]

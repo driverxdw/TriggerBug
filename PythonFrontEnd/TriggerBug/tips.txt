@@ -1,3 +1,6 @@
+PYCHARM PYTHONUNBUFFERED=1;PYDEVD_USE_FRAME_EVAL=NO;PYDEVD_USE_CPYTHON=YES
+
+
 同步api接口
 由于z3 context 是c层创建的，为了使用python层z3接口，故不允许在python进程空间有2份 libz3.dll模块
 下载z3_win 包

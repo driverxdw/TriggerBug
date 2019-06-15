@@ -1,5 +1,5 @@
 extern "C" {
-#include "guest_amd64_defs.h"
+#include "guest_x86_defs.h"
 }
 
 
@@ -9,15 +9,11 @@ extern "C" {
 
 
 #define PREAMBLE(__data_bits)                                   \
-   /* const */ ULong DATA_MASK                                  \
-      = __data_bits==8                                          \
-           ? 0xFFULL                                            \
-           : (__data_bits==16                                   \
-                ? 0xFFFFULL                                     \
-                : (__data_bits==32                              \
-                     ? 0xFFFFFFFFULL                            \
-                     : 0xFFFFFFFFFFFFFFFFULL));                 \
-   /* const */ ULong SIGN_MASK = 1ULL << (__data_bits - 1);     \
+   /* const */ UInt DATA_MASK                                   \
+      = __data_bits==8 ? 0xFF                                   \
+                       : (__data_bits==16 ? 0xFFFF              \
+                                          : 0xFFFFFFFF);        \
+   /* const */ UInt SIGN_MASK = 1u << (__data_bits - 1);        \
 
 
 /*-------------------------------------------------------------*/
@@ -42,9 +38,9 @@ extern "C" {
      /*ok*/MASKcf(return DATA_UTYPE((CC_DEP1 + CC_DEP2)) < DATA_UTYPE(CC_DEP1);                                                     )\
      /*ok*/MASKpf(return parity_table((CC_DEP1 + CC_DEP2));                                                                         )\
      /*ok*/MASKaf(return bit2ret((CC_DEP1 + CC_DEP2) ^ CC_DEP1 ^ CC_DEP2, AMD64G_CC_SHIFT_A);                                       )\
-     /*ok*/MASKzf(return (DATA_UTYPE((CC_DEP1 + CC_DEP2)) == 0ull) ;                                                                )\
+     /*ok*/MASKzf(return (DATA_UTYPE((CC_DEP1 + CC_DEP2)) == 0) ;                                                                )\
      /*ok*/MASKsf(return bit2ret((CC_DEP1 + CC_DEP2), DATA_BITS - 1) ;                                                              )\
-     /*ok*/MASKof(return bit2ret((CC_DEP1 ^ CC_DEP2 ^ -1ull) & (CC_DEP1 ^ (CC_DEP1 + CC_DEP2)),  DATA_BITS - 1) ;                   )\
+     /*ok*/MASKof(return bit2ret((CC_DEP1 ^ CC_DEP2 ^ -1) & (CC_DEP1 ^ (CC_DEP1 + CC_DEP2)),  DATA_BITS - 1) ;                   )\
    }                                                                                                                                \
 }
 
@@ -57,7 +53,7 @@ extern "C" {
      /*ok*/MASKcf(return DATA_UTYPE(CC_DEP1) < DATA_UTYPE(CC_DEP2);                                                                 )\
      /*ok*/MASKpf(return parity_table((CC_DEP1 - CC_DEP2));                                                                         )\
      /*ok*/MASKaf(return bit2ret((CC_DEP1 - CC_DEP2) ^ CC_DEP1 ^ CC_DEP2, AMD64G_CC_SHIFT_A);                                       )\
-     /*ok*/MASKzf(return (DATA_UTYPE((CC_DEP1 - CC_DEP2)) == 0ull) ;                                                                )\
+     /*ok*/MASKzf(return (DATA_UTYPE((CC_DEP1 - CC_DEP2)) == 0u) ;                                                                )\
      /*ok*/MASKsf(return bit2ret((CC_DEP1 - CC_DEP2), DATA_BITS - 1);                                                               )\
      /*ok*/MASKof(return bit2ret((CC_DEP1 ^ CC_DEP2) & (CC_DEP1 ^ (CC_DEP1 - CC_DEP2)), DATA_BITS - 1) ;                            )\
    }                                                                                                                                \
@@ -70,12 +66,12 @@ extern "C" {
    PREAMBLE(DATA_BITS);                                                                                                             \
    {                                                                                                                                \
      auto oldC = CC_NDEP & AMD64G_CC_MASK_C;                                                                                        \
-     /*ok*/MASKcf(return ite(oldC!=0ull,DATA_UTYPE(((CC_DEP1 + (CC_DEP2 ^ oldC)) + oldC)) <= DATA_UTYPE(CC_DEP1),DATA_UTYPE(((CC_DEP1 + (CC_DEP2 ^ oldC)) + oldC)) < DATA_UTYPE(CC_DEP1))  ;)\
+     /*ok*/MASKcf(return ite(oldC!=0,DATA_UTYPE(((CC_DEP1 + (CC_DEP2 ^ oldC)) + oldC)) <= DATA_UTYPE(CC_DEP1),DATA_UTYPE(((CC_DEP1 + (CC_DEP2 ^ oldC)) + oldC)) < DATA_UTYPE(CC_DEP1))  ;)\
      /*ok*/MASKpf(return parity_table(((CC_DEP1 + (CC_DEP2 ^ oldC)) + oldC));                                                       )\
      /*ok*/MASKaf(return bit2ret((((CC_DEP1 + (CC_DEP2 ^ oldC)) + oldC) ^ CC_DEP1 ^ (CC_DEP2 ^ oldC)), AMD64G_CC_SHIFT_A);          )\
-     /*ok*/MASKzf(return (DATA_UTYPE(((CC_DEP1 + (CC_DEP2 ^ oldC)) + oldC)) == 0ull) ;                                              )\
+     /*ok*/MASKzf(return (DATA_UTYPE(((CC_DEP1 + (CC_DEP2 ^ oldC)) + oldC)) == 0) ;                                              )\
      /*ok*/MASKsf(return bit2ret(((CC_DEP1 + (CC_DEP2 ^ oldC)) + oldC),  DATA_BITS - 1);                                            )\
-     /*ok*/MASKof(return bit2ret((CC_DEP1 ^ (CC_DEP2 ^ oldC) ^ -1ull) & (CC_DEP1 ^ ((CC_DEP1 + (CC_DEP2 ^ oldC)) + oldC)), DATA_BITS - 1) ;                                                                             )\
+     /*ok*/MASKof(return bit2ret((CC_DEP1 ^ (CC_DEP2 ^ oldC) ^ -1) & (CC_DEP1 ^ ((CC_DEP1 + (CC_DEP2 ^ oldC)) + oldC)), DATA_BITS - 1) ;                                                                             )\
    }                                                                                                                                \
 }
 
@@ -86,10 +82,10 @@ extern "C" {
    PREAMBLE(DATA_BITS);                                                                                                                             \
    {                                                                                                                                                \
      auto oldC = CC_NDEP & AMD64G_CC_MASK_C;                                                                                                        \
-     /*ok*/MASKcf(return  ite(oldC!=0ull, DATA_UTYPE(CC_DEP1) <= DATA_UTYPE((CC_DEP2 ^ oldC)),DATA_UTYPE(CC_DEP1) < DATA_UTYPE((CC_DEP2 ^ oldC)));  )\
+     /*ok*/MASKcf(return  ite(oldC!=0, DATA_UTYPE(CC_DEP1) <= DATA_UTYPE((CC_DEP2 ^ oldC)),DATA_UTYPE(CC_DEP1) < DATA_UTYPE((CC_DEP2 ^ oldC)));  )\
      /*ok*/MASKpf(return parity_table(((CC_DEP1 - (CC_DEP2 ^ oldC)) - oldC));                                                                       )\
      /*ok*/MASKaf(return bit2ret((((CC_DEP1 - (CC_DEP2 ^ oldC)) - oldC) ^ CC_DEP1 ^ (CC_DEP2 ^ oldC)), AMD64G_CC_SHIFT_A);                          )\
-     /*ok*/MASKzf(return (DATA_UTYPE(((CC_DEP1 - (CC_DEP2 ^ oldC)) - oldC)) == 0ull) ;                                                              )\
+     /*ok*/MASKzf(return (DATA_UTYPE(((CC_DEP1 - (CC_DEP2 ^ oldC)) - oldC)) == 0) ;                                                              )\
      /*ok*/MASKsf(return bit2ret(((CC_DEP1 - (CC_DEP2 ^ oldC)) - oldC),  DATA_BITS - 1);                                                            )\
      /*ok*/MASKof(return bit2ret((CC_DEP1 ^ (CC_DEP2 ^ oldC)) & (CC_DEP1 ^ ((CC_DEP1 - (CC_DEP2 ^ oldC)) - oldC)), DATA_BITS - 1) ;                 )\
    }                                                                                                                                                \
@@ -104,7 +100,7 @@ extern "C" {
      /*ok*/MASKcf(return Vns((CC_DEP1), 0, 1);                                                              )\
      /*ok*/MASKpf(return parity_table(CC_DEP1);                                                             )\
      /*ok*/MASKaf(return Vns((CC_DEP1), 0, 1);                                                              )\
-     /*ok*/MASKzf(return (DATA_UTYPE(CC_DEP1) == 0ull) ;                                                    )\
+     /*ok*/MASKzf(return (DATA_UTYPE(CC_DEP1) == 0) ;                                                    )\
      /*ok*/MASKsf(return bit2ret(CC_DEP1,  DATA_BITS - 1);                                                  )\
      /*ok*/MASKof(return Vns((CC_DEP1), 0, 1);                                                              )\
    }                                                                                                        \
@@ -118,8 +114,8 @@ extern "C" {
    {                                                                                                        \
      /*ok*/MASKcf(return bit2ret(CC_NDEP,AMD64G_CC_SHIFT_C);                                                )\
      /*ok*/MASKpf(return parity_table(CC_DEP1);                                                             )\
-     /*ok*/MASKaf(return bit2ret((CC_DEP1 ^ (CC_DEP1 - 1ull) ^ 1ull), AMD64G_CC_SHIFT_A);                   )\
-     /*ok*/MASKzf(return (DATA_UTYPE(CC_DEP1) == 0ull) ;                                                    )\
+     /*ok*/MASKaf(return bit2ret((CC_DEP1 ^ (CC_DEP1 - 1) ^ 1), AMD64G_CC_SHIFT_A);                   )\
+     /*ok*/MASKzf(return (DATA_UTYPE(CC_DEP1) == 0) ;                                                    )\
      /*ok*/MASKsf(return bit2ret(CC_DEP1, DATA_BITS - 1);                                                   )\
      /*ok*/MASKof(return ((CC_DEP1 & DATA_MASK) == SIGN_MASK) ;                                             )\
                                                                                                             \
@@ -134,10 +130,10 @@ extern "C" {
    {                                                                                                        \
      /*ok*/MASKcf(return bit2ret(CC_NDEP,AMD64G_CC_SHIFT_C);                                                )\
      /*ok*/MASKpf(return parity_table(CC_DEP1);                                                             )\
-     /*ok*/MASKaf(return bit2ret((CC_DEP1 ^ (CC_DEP1 + 1ull) ^ 1ull), AMD64G_CC_SHIFT_A);                   )\
-     /*ok*/MASKzf(return (DATA_UTYPE(CC_DEP1) == 0ull) ;                                                    )\
+     /*ok*/MASKaf(return bit2ret((CC_DEP1 ^ (CC_DEP1 + 1) ^ 1), AMD64G_CC_SHIFT_A);                   )\
+     /*ok*/MASKzf(return (DATA_UTYPE(CC_DEP1) == 0) ;                                                    )\
      /*ok*/MASKsf(return bit2ret(CC_DEP1, DATA_BITS - 1);                                                   )\
-     /*ok*/MASKof(return ((CC_DEP1 & DATA_MASK) == ((ULong)SIGN_MASK - 1)) ;                                )\
+     /*ok*/MASKof(return ((CC_DEP1 & DATA_MASK) == ((UInt)SIGN_MASK - 1)) ;                                )\
                                                                                                             \
    }                                                                                                        \
 }
@@ -151,7 +147,7 @@ extern "C" {
      /*ok*/MASKcf(return bit2ret(CC_DEP2 , (DATA_BITS - 1));                                                )\
      /*ok*/MASKpf(return parity_table(CC_DEP1);                                                             )\
      /*ok*/MASKaf(return Vns((CC_DEP1), 0, 1); /* undefined */                                              )\
-     /*ok*/MASKzf(return (DATA_UTYPE(CC_DEP1) == 0ull) ;                                                    )\
+     /*ok*/MASKzf(return (DATA_UTYPE(CC_DEP1) == 0) ;                                                    )\
      /*ok*/MASKsf(return bit2ret(CC_DEP1, DATA_BITS - 1);                                                   )\
      /* of is defined if shift count == 1 */                                                                \
      /*ok*/MASKof(return bit2ret(CC_DEP2 ^ CC_DEP1, DATA_BITS - 1);)                                        \
@@ -167,7 +163,7 @@ extern "C" {
      /*ok*/MASKcf(return bit2ret(CC_DEP2, AMD64G_CC_SHIFT_C);                                               )\
      /*ok*/MASKpf(return parity_table(CC_DEP1);                                                             )\
      /*ok*/MASKaf(return Vns((CC_DEP1), 0, 1); /* undefined */                                              )\
-     /*ok*/MASKzf(return (DATA_UTYPE(CC_DEP1) == 0ull) ;                                                    )\
+     /*ok*/MASKzf(return (DATA_UTYPE(CC_DEP1) == 0) ;                                                    )\
      /*ok*/MASKsf(return bit2ret(CC_DEP1, DATA_BITS - 1);                                                   )\
      /* of is defined if shift count == 1 */                                                                \
      /*ok*/MASKof(return bit2ret(CC_DEP2 ^ CC_DEP1, DATA_BITS - 1);)                                        \
@@ -218,7 +214,7 @@ extern "C" {
      /*ok*/MASKcf(return Vns((CC_DEP1), 0, 1);                                                              )\
      /*ok*/MASKpf(return Vns((CC_DEP1), 0, 1);                                                              )\
      /*ok*/MASKaf(return Vns((CC_DEP1), 0, 1);                                                              )\
-     /*ok*/MASKzf(return (DATA_UTYPE(CC_DEP1) == 0ull) ;                                                    )\
+     /*ok*/MASKzf(return (DATA_UTYPE(CC_DEP1) == 0) ;                                                    )\
      /*ok*/MASKsf(return bit2ret(CC_DEP1, DATA_BITS - 1);                                                   )\
      /*ok*/MASKof(return Vns((CC_DEP1), 0, 1);                                                              )\
    }                                                                                                        \
@@ -230,10 +226,10 @@ extern "C" {
 {                                                                                                           \
    PREAMBLE(DATA_BITS);                                                                                     \
    {                                                                                                        \
-     /*ok*/MASKcf(return (DATA_UTYPE(CC_DEP2) != 0ull);                                                     )\
+     /*ok*/MASKcf(return (DATA_UTYPE(CC_DEP2) != 0);                                                     )\
      /*ok*/MASKpf(return Vns((CC_DEP1), 0, 1);                                                              )\
      /*ok*/MASKaf(return Vns((CC_DEP1), 0, 1);                                                              )\
-     /*ok*/MASKzf(return (DATA_UTYPE(CC_DEP1) == 0ull) ;                                                    )\
+     /*ok*/MASKzf(return (DATA_UTYPE(CC_DEP1) == 0) ;                                                    )\
      /*ok*/MASKsf(return bit2ret(CC_DEP1, DATA_BITS - 1);                                                   )\
      /*ok*/MASKof(return Vns((CC_DEP1), 0, 1);                                                              )\
    }                                                                                                        \
@@ -245,7 +241,7 @@ extern "C" {
 {                                                                                                           \
    PREAMBLE(DATA_BITS);                                                                                     \
    {                                                                                                        \
-     /*ok*/MASKcf(return (DATA_UTYPE(CC_DEP2) == 0ull);                                                     )\
+     /*ok*/MASKcf(return (DATA_UTYPE(CC_DEP2) == 0);                                                     )\
      /*ok*/MASKpf(return Vns((CC_DEP1), 0, 1);                                                              )\
      /*ok*/MASKaf(return Vns((CC_DEP1), 0, 1);                                                              )\
      /*ok*/MASKzf(return Vns((CC_DEP1), 0, 1);                                                              )\
@@ -260,10 +256,10 @@ extern "C" {
 {                                                                                                           \
    PREAMBLE(DATA_BITS);                                                                                     \
    {                                                                                                        \
-     /*ok*/MASKcf(return (DATA_UTYPE(CC_DEP2) == 0ull);                                                     )\
+     /*ok*/MASKcf(return (DATA_UTYPE(CC_DEP2) == 0);                                                     )\
      /*ok*/MASKpf(return Vns((CC_DEP1), 0, 1);                                                              )\
      /*ok*/MASKaf(return Vns((CC_DEP1), 0, 1);                                                              )\
-     /*ok*/MASKzf(return (DATA_UTYPE(CC_DEP1) == 0ull) ;                                                    )\
+     /*ok*/MASKzf(return (DATA_UTYPE(CC_DEP1) == 0) ;                                                    )\
      /*ok*/MASKsf(return bit2ret(CC_DEP1, DATA_BITS - 1);                                                   )\
      /*ok*/MASKof(return Vns((CC_DEP1), 0, 1);                                                              )\
    }                                                                                                        \
@@ -275,8 +271,8 @@ extern "C" {
 {                                                                                                           \
    PREAMBLE(DATA_BITS);                                                                                     \
    {                                                                                                        \
-    /*ok*/MASKcf({ auto oldOC = (CC_NDEP >> AMD64G_CC_SHIFT_C) & 1ull;                                      \
-                   return ite(oldOC==1ull,                                                                  \
+    /*ok*/MASKcf({ auto oldOC = (CC_NDEP >> AMD64G_CC_SHIFT_C) & 1;                                      \
+                   return ite(oldOC==1,                                                                  \
         (DATA_UTYPE(((CC_DEP1 + (CC_DEP2 ^ oldOC)) + oldOC)) <= DATA_UTYPE(CC_DEP1)),                       \
         (DATA_UTYPE(((CC_DEP1 + (CC_DEP2 ^ oldOC)) + oldOC)) < DATA_UTYPE(CC_DEP1)));    }                  )\
     /*ok*/MASKpf(  return bit2ret(CC_NDEP, AMD64G_CC_SHIFT_P);                                              )\
@@ -296,8 +292,8 @@ extern "C" {
     /*ok*/MASKzf(  return bit2ret(CC_NDEP, AMD64G_CC_SHIFT_Z);                                              )\
     /*ok*/MASKsf(  return bit2ret(CC_NDEP, AMD64G_CC_SHIFT_S);                                              )\
     /*ok*/MASKof(  return bit2ret(CC_NDEP, AMD64G_CC_SHIFT_O);                                              )\
-        auto oldOC = (CC_NDEP >> AMD64G_CC_SHIFT_O) & 1ull;                                                 \
-    /*ok*/MASKof(  return ite(oldOC==1ull,                                                                  \
+        auto oldOC = (CC_NDEP >> AMD64G_CC_SHIFT_O) & 1;                                                 \
+    /*ok*/MASKof(  return ite(oldOC==1,                                                                  \
         (DATA_UTYPE(((CC_DEP1 + (CC_DEP2 ^ oldOC)) + oldOC)) <= DATA_UTYPE(CC_DEP1)),                       \
         (DATA_UTYPE(((CC_DEP1 + (CC_DEP2 ^ oldOC)) + oldOC)) < DATA_UTYPE(CC_DEP1)));                       )\
    }                                                                                                        \
@@ -339,39 +335,6 @@ extern "C" {
 }
 
 /*-------------------------------------------------------------*/
-
-#define ACTIONS_UMULQ(MASKcf,MASKpf,MASKaf,MASKzf,MASKsf,MASKof)                                                                \
-{                                                                                                                               \
-     auto u2m = CC_DEP1.extract(63, 0).zext(64)* CC_DEP2.extract(63, 0).zext(64);                                               \
-     /*ok*/MASKcf(return u2m.extract(127, 64) != (ULong)0;                                                                      )\
-     /*ok*/MASKpf(return parity_table(u2m);                                                                                     )\
-     /*ok*/MASKaf(return Vns((CC_DEP1), 0, 1); /* undefined */                                                                  )\
-     /*ok*/MASKzf(return (u2m.extract(63, 0) == (ULong)0);                                                                      )\
-     /*ok*/MASKsf(return bit2ret(u2m, 63);                                                                                      )\
-     /*ok*/MASKof(return u2m.extract(127, 64) != (ULong)0;                                                                      )\
-}
-
-/*-------------------------------------------------------------*/
-
-#define ACTIONS_SMULQ(MASKcf,MASKpf,MASKaf,MASKzf,MASKsf,MASKof)                                                                \
-{                                                                                                                               \
-     auto u2m = CC_DEP1.extract(63, 0).sext(64)*CC_DEP2.extract(63, 0).sext(64);                                                \
-     /*ok*/MASKcf(return u2m.extract(127, 64) != ashr(u2m.extract(63, 0),63);                                                   )\
-     /*ok*/MASKpf(return parity_table(u2m);                                                                                     )\
-     /*ok*/MASKaf(return Vns((CC_DEP1), 0, 1); /* undefined */                                                                  )\
-     /*ok*/MASKzf(return (u2m.extract(63, 0) == (ULong)0);                                                                      )\
-     /*ok*/MASKsf(return bit2ret(u2m, 63);                                                                                      )\
-     /*ok*/MASKof(return u2m.extract(127, 64) != ashr(u2m.extract(63, 0),63);                                                   )\
-}
-
-/*-------------------------------------------------------------*/
-
-
-
-
-
-
-
 
 
 #define ACTIONS_COPY_cf()       ACTIONS_COPY    (MACRO, NOTEMACRO, NOTEMACRO, NOTEMACRO, NOTEMACRO, NOTEMACRO)
@@ -496,251 +459,189 @@ extern "C" {
 #define ACTIONS_SMUL_of(A, B, C, D, E) ACTIONS_SMUL(NOTEMACRO, NOTEMACRO, NOTEMACRO, NOTEMACRO, NOTEMACRO, MACRO, A, B, C, D, E)
 
 
-#define ACTIONS_UMULQ_cf()   ACTIONS_UMULQ     (MACRO, NOTEMACRO, NOTEMACRO, NOTEMACRO, NOTEMACRO, NOTEMACRO)
-#define ACTIONS_UMULQ_pf()   ACTIONS_UMULQ     (NOTEMACRO, MACRO, NOTEMACRO, NOTEMACRO, NOTEMACRO, NOTEMACRO)
-#define ACTIONS_UMULQ_af()   ACTIONS_UMULQ     (NOTEMACRO, NOTEMACRO, MACRO, NOTEMACRO, NOTEMACRO, NOTEMACRO)
-#define ACTIONS_UMULQ_zf()   ACTIONS_UMULQ     (NOTEMACRO, NOTEMACRO, NOTEMACRO, MACRO, NOTEMACRO, NOTEMACRO)
-#define ACTIONS_UMULQ_sf()   ACTIONS_UMULQ     (NOTEMACRO, NOTEMACRO, NOTEMACRO, NOTEMACRO, MACRO, NOTEMACRO)
-#define ACTIONS_UMULQ_of()   ACTIONS_UMULQ     (NOTEMACRO, NOTEMACRO, NOTEMACRO, NOTEMACRO, NOTEMACRO, MACRO)
 
-#define ACTIONS_SMULQ_cf()   ACTIONS_SMULQ     (MACRO, NOTEMACRO, NOTEMACRO, NOTEMACRO, NOTEMACRO, NOTEMACRO)
-#define ACTIONS_SMULQ_pf()   ACTIONS_SMULQ     (NOTEMACRO, MACRO, NOTEMACRO, NOTEMACRO, NOTEMACRO, NOTEMACRO)
-#define ACTIONS_SMULQ_af()   ACTIONS_SMULQ     (NOTEMACRO, NOTEMACRO, MACRO, NOTEMACRO, NOTEMACRO, NOTEMACRO)
-#define ACTIONS_SMULQ_zf()   ACTIONS_SMULQ     (NOTEMACRO, NOTEMACRO, NOTEMACRO, MACRO, NOTEMACRO, NOTEMACRO)
-#define ACTIONS_SMULQ_sf()   ACTIONS_SMULQ     (NOTEMACRO, NOTEMACRO, NOTEMACRO, NOTEMACRO, MACRO, NOTEMACRO)
-#define ACTIONS_SMULQ_of()   ACTIONS_SMULQ     (NOTEMACRO, NOTEMACRO, NOTEMACRO, NOTEMACRO, NOTEMACRO, MACRO)
-
-
-
-
-
-#define z3_amd64g_calculate_rflags_(FLAG)                                                \
-inline static Vns z3_amd64g_calculate_rflags_##FLAG(                                     \
-    ULong cc_op,                                                                         \
-    Vns &cc_dep1_formal,                                                                 \
-    Vns &cc_dep2_formal,                                                                 \
-    Vns &cc_ndep_formal)                                                                 \
-{                                                                                        \
-    switch (cc_op) {                                                                     \
-    case AMD64G_CC_OP_COPY:   ACTIONS_COPY_##FLAG()                                      \
-                                                                                         \
-    case AMD64G_CC_OP_ADDB:   ACTIONS_ADD_##FLAG(8, UChar_extract);                      \
-    case AMD64G_CC_OP_ADDW:   ACTIONS_ADD_##FLAG(16, UShort_extract);                    \
-    case AMD64G_CC_OP_ADDL:   ACTIONS_ADD_##FLAG(32, UInt_extract);                      \
-    case AMD64G_CC_OP_ADDQ:   ACTIONS_ADD_##FLAG(64, ULong_extract);                     \
-                                                                                         \
-    case AMD64G_CC_OP_ADCB:   ACTIONS_ADC_##FLAG(8, UChar_extract );                     \
-    case AMD64G_CC_OP_ADCW:   ACTIONS_ADC_##FLAG(16, UShort_extract );                   \
-    case AMD64G_CC_OP_ADCL:   ACTIONS_ADC_##FLAG(32, UInt_extract );                     \
-    case AMD64G_CC_OP_ADCQ:   ACTIONS_ADC_##FLAG(64, ULong_extract );                    \
-                                                                                         \
-    case AMD64G_CC_OP_SUBB:   ACTIONS_SUB_##FLAG(8, UChar_extract );                     \
-    case AMD64G_CC_OP_SUBW:   ACTIONS_SUB_##FLAG(16, UShort_extract );                   \
-    case AMD64G_CC_OP_SUBL:   ACTIONS_SUB_##FLAG(32, UInt_extract );                     \
-    case AMD64G_CC_OP_SUBQ:   ACTIONS_SUB_##FLAG(64, ULong_extract );                    \
-                                                                                         \
-    case AMD64G_CC_OP_SBBB:   ACTIONS_SBB_##FLAG(8, UChar_extract );                     \
-    case AMD64G_CC_OP_SBBW:   ACTIONS_SBB_##FLAG(16, UShort_extract );                   \
-    case AMD64G_CC_OP_SBBL:   ACTIONS_SBB_##FLAG(32, UInt_extract );                     \
-    case AMD64G_CC_OP_SBBQ:   ACTIONS_SBB_##FLAG(64, ULong_extract );                    \
-                                                                                         \
-    case AMD64G_CC_OP_LOGICB: ACTIONS_LOGIC_##FLAG(8, UChar_extract );                   \
-    case AMD64G_CC_OP_LOGICW: ACTIONS_LOGIC_##FLAG(16, UShort_extract );                 \
-    case AMD64G_CC_OP_LOGICL: ACTIONS_LOGIC_##FLAG(32, UInt_extract );                   \
-    case AMD64G_CC_OP_LOGICQ: ACTIONS_LOGIC_##FLAG(64, ULong_extract );                  \
-                                                                                         \
-    case AMD64G_CC_OP_INCB:   ACTIONS_INC_##FLAG(8, UChar_extract );                     \
-    case AMD64G_CC_OP_INCW:   ACTIONS_INC_##FLAG(16, UShort_extract );                   \
-    case AMD64G_CC_OP_INCL:   ACTIONS_INC_##FLAG(32, UInt_extract );                     \
-    case AMD64G_CC_OP_INCQ:   ACTIONS_INC_##FLAG(64, ULong_extract );                    \
-                                                                                         \
-    case AMD64G_CC_OP_DECB:   ACTIONS_DEC_##FLAG(8, UChar_extract );                     \
-    case AMD64G_CC_OP_DECW:   ACTIONS_DEC_##FLAG(16, UShort_extract );                   \
-    case AMD64G_CC_OP_DECL:   ACTIONS_DEC_##FLAG(32, UInt_extract );                     \
-    case AMD64G_CC_OP_DECQ:   ACTIONS_DEC_##FLAG(64, ULong_extract );                    \
-                                                                                         \
-    case AMD64G_CC_OP_SHLB:   ACTIONS_SHL_##FLAG(8, UChar_extract );                     \
-    case AMD64G_CC_OP_SHLW:   ACTIONS_SHL_##FLAG(16, UShort_extract );                   \
-    case AMD64G_CC_OP_SHLL:   ACTIONS_SHL_##FLAG(32, UInt_extract );                     \
-    case AMD64G_CC_OP_SHLQ:   ACTIONS_SHL_##FLAG(64, ULong_extract );                    \
-                                                                                         \
-    case AMD64G_CC_OP_SHRB:   ACTIONS_SHR_##FLAG(8, UChar_extract );                     \
-    case AMD64G_CC_OP_SHRW:   ACTIONS_SHR_##FLAG(16, UShort_extract );                   \
-    case AMD64G_CC_OP_SHRL:   ACTIONS_SHR_##FLAG(32, UInt_extract );                     \
-    case AMD64G_CC_OP_SHRQ:   ACTIONS_SHR_##FLAG(64, ULong_extract );                    \
-                                                                                         \
-    case AMD64G_CC_OP_ROLB:   ACTIONS_ROL_##FLAG(8, UChar_extract );                     \
-    case AMD64G_CC_OP_ROLW:   ACTIONS_ROL_##FLAG(16, UShort_extract );                   \
-    case AMD64G_CC_OP_ROLL:   ACTIONS_ROL_##FLAG(32, UInt_extract );                     \
-    case AMD64G_CC_OP_ROLQ:   ACTIONS_ROL_##FLAG(64, ULong_extract );                    \
-                                                                                         \
-    case AMD64G_CC_OP_RORB:   ACTIONS_ROR_##FLAG(8, UChar_extract );                     \
-    case AMD64G_CC_OP_RORW:   ACTIONS_ROR_##FLAG(16, UShort_extract );                   \
-    case AMD64G_CC_OP_RORL:   ACTIONS_ROR_##FLAG(32, UInt_extract );                     \
-    case AMD64G_CC_OP_RORQ:   ACTIONS_ROR_##FLAG(64, ULong_extract );                    \
-                                                                                         \
-                                                                                         \
-    case AMD64G_CC_OP_ANDN32: ACTIONS_ANDN_##FLAG(32, UInt_extract);                     \
-    case AMD64G_CC_OP_ANDN64: ACTIONS_ANDN_##FLAG(64, ULong_extract );                   \
-                                                                                         \
-    case AMD64G_CC_OP_BLSI32: ACTIONS_BLSI_##FLAG(32, UInt_extract );                    \
-    case AMD64G_CC_OP_BLSI64: ACTIONS_BLSI_##FLAG(64, ULong_extract );                   \
-                                                                                         \
-    case AMD64G_CC_OP_BLSMSK32: ACTIONS_BLSMSK_##FLAG(32, UInt_extract );                \
-    case AMD64G_CC_OP_BLSMSK64: ACTIONS_BLSMSK_##FLAG(64, ULong_extract );               \
-                                                                                         \
-    case AMD64G_CC_OP_BLSR32: ACTIONS_BLSR_##FLAG(32, UInt_extract );                    \
-    case AMD64G_CC_OP_BLSR64: ACTIONS_BLSR_##FLAG(64, ULong_extract );                   \
-                                                                                         \
-    case AMD64G_CC_OP_ADCX32: ACTIONS_ADCX_##FLAG(32, UInt_extract);                     \
-    case AMD64G_CC_OP_ADCX64: ACTIONS_ADCX_##FLAG(64, ULong_extract);                    \
-                                                                                         \
-    case AMD64G_CC_OP_ADOX32: ACTIONS_ADOX_##FLAG(32, UInt_extract);                     \
-    case AMD64G_CC_OP_ADOX64: ACTIONS_ADOX_##FLAG(64, ULong_extract);                    \
-                                                                                         \
-                                                                                         \
-    case AMD64G_CC_OP_UMULB:  ACTIONS_UMUL_##FLAG(8, UChar, toUChar,                     \
-        UShort, toUShort);                                                               \
-    case AMD64G_CC_OP_UMULW:  ACTIONS_UMUL_##FLAG(16, UShort, toUShort,                  \
-        UInt, toUInt);                                                                   \
-    case AMD64G_CC_OP_UMULL:  ACTIONS_UMUL_##FLAG(32, UInt, toUInt,                      \
-        ULong, idULong);                                                                 \
-                                                                                         \
-    case AMD64G_CC_OP_UMULQ:  ACTIONS_UMULQ_##FLAG();                                    \
-                                                                                         \
-    case AMD64G_CC_OP_SMULB:  ACTIONS_SMUL_##FLAG(8, Char, toUChar,                      \
-        Short, toUShort);                                                                \
-    case AMD64G_CC_OP_SMULW:  ACTIONS_SMUL_##FLAG(16, Short, toUShort,                   \
-        Int, toUInt);                                                                    \
-    case AMD64G_CC_OP_SMULL:  ACTIONS_SMUL_##FLAG(32, Int, toUInt,                       \
-        Long, idULong);                                                                  \
-                                                                                         \
-    case AMD64G_CC_OP_SMULQ:  ACTIONS_SMULQ_##FLAG();                                    \
-                                                                                         \
-    default:                                                                             \
-        /* shouldn't really make these calls from generated code */                      \
-        vex_printf("amd64g_calculate_rflags_all_WRK(AMD64)"                              \
-            "( %llu, 0x%llx, 0x%llx, 0x%llx )\n",                                        \
-            cc_op, cc_dep1_formal, cc_dep2_formal, cc_ndep_formal);                      \
-        vpanic("amd64g_calculate_rflags_all_WRK(AMD64)");                                \
-    }                                                                                    \
+/* CALLED FROM GENERATED CODE: CLEAN HELPER */
+/* Calculate all the 6 flags from the supplied thunk parameters.
+   Worker function, not directly called from generated code. */
+#define z3_x86g_calculate_eflags_(FLAG)                                             \
+inline static Vns z3_x86g_calculate_eflags_##FLAG ( UInt cc_op,                     \
+                                     Vns &cc_dep1_formal,                           \
+                                     Vns &cc_dep2_formal,                           \
+                                     Vns &cc_ndep_formal )                          \
+{                                                                                   \
+   switch (cc_op) {                                                                 \
+      case X86G_CC_OP_COPY:   ACTIONS_COPY_##FLAG()                                 \
+                                                                                    \
+      case X86G_CC_OP_ADDB:   ACTIONS_ADD_##FLAG( 8,  UChar_extract  );             \
+      case X86G_CC_OP_ADDW:   ACTIONS_ADD_##FLAG( 16, UShort_extract );             \
+      case X86G_CC_OP_ADDL:   ACTIONS_ADD_##FLAG( 32, UInt_extract   );             \
+                                                                                    \
+      case X86G_CC_OP_ADCB:   ACTIONS_ADC_##FLAG( 8,  UChar_extract  );             \
+      case X86G_CC_OP_ADCW:   ACTIONS_ADC_##FLAG( 16, UShort_extract );             \
+      case X86G_CC_OP_ADCL:   ACTIONS_ADC_##FLAG( 32, UInt_extract   );             \
+                                                                                    \
+      case X86G_CC_OP_SUBB:   ACTIONS_SUB_##FLAG(  8, UChar_extract  );             \
+      case X86G_CC_OP_SUBW:   ACTIONS_SUB_##FLAG( 16, UShort_extract );             \
+      case X86G_CC_OP_SUBL:   ACTIONS_SUB_##FLAG( 32, UInt_extract   );             \
+                                                                                    \
+      case X86G_CC_OP_SBBB:   ACTIONS_SBB_##FLAG(  8, UChar_extract  );             \
+      case X86G_CC_OP_SBBW:   ACTIONS_SBB_##FLAG( 16, UShort_extract );             \
+      case X86G_CC_OP_SBBL:   ACTIONS_SBB_##FLAG( 32, UInt_extract   );             \
+                                                                                    \
+      case X86G_CC_OP_LOGICB: ACTIONS_LOGIC_##FLAG(  8, UChar_extract  );           \
+      case X86G_CC_OP_LOGICW: ACTIONS_LOGIC_##FLAG( 16, UShort_extract );           \
+      case X86G_CC_OP_LOGICL: ACTIONS_LOGIC_##FLAG( 32, UInt_extract   );           \
+                                                                                    \
+      case X86G_CC_OP_INCB:   ACTIONS_INC_##FLAG(  8, UChar_extract  );             \
+      case X86G_CC_OP_INCW:   ACTIONS_INC_##FLAG( 16, UShort_extract );             \
+      case X86G_CC_OP_INCL:   ACTIONS_INC_##FLAG( 32, UInt_extract   );             \
+                                                                                    \
+      case X86G_CC_OP_DECB:   ACTIONS_DEC_##FLAG(  8, UChar_extract  );             \
+      case X86G_CC_OP_DECW:   ACTIONS_DEC_##FLAG( 16, UShort_extract );             \
+      case X86G_CC_OP_DECL:   ACTIONS_DEC_##FLAG( 32, UInt_extract   );             \
+                                                                                    \
+      case X86G_CC_OP_SHLB:   ACTIONS_SHL_##FLAG(  8, UChar_extract  );             \
+      case X86G_CC_OP_SHLW:   ACTIONS_SHL_##FLAG( 16, UShort_extract );             \
+      case X86G_CC_OP_SHLL:   ACTIONS_SHL_##FLAG( 32, UInt_extract   );             \
+                                                                                    \
+      case X86G_CC_OP_SHRB:   ACTIONS_SHR_##FLAG(  8, UChar_extract  );             \
+      case X86G_CC_OP_SHRW:   ACTIONS_SHR_##FLAG( 16, UShort_extract );             \
+      case X86G_CC_OP_SHRL:   ACTIONS_SHR_##FLAG( 32, UInt_extract   );             \
+                                                                                    \
+      case X86G_CC_OP_ROLB:   ACTIONS_ROL_##FLAG(  8, UChar_extract  );             \
+      case X86G_CC_OP_ROLW:   ACTIONS_ROL_##FLAG( 16, UShort_extract );             \
+      case X86G_CC_OP_ROLL:   ACTIONS_ROL_##FLAG( 32, UInt_extract   );             \
+                                                                                    \
+      case X86G_CC_OP_RORB:   ACTIONS_ROR_##FLAG(  8, UChar_extract  );             \
+      case X86G_CC_OP_RORW:   ACTIONS_ROR_##FLAG( 16, UShort_extract );             \
+      case X86G_CC_OP_RORL:   ACTIONS_ROR_##FLAG( 32, UInt_extract   );             \
+                                                                                    \
+      case X86G_CC_OP_UMULB:  ACTIONS_UMUL_##FLAG(  8, UChar,  toUChar,             \
+                                                UShort, toUShort );                 \
+      case X86G_CC_OP_UMULW:  ACTIONS_UMUL_##FLAG( 16, UShort, toUShort,            \
+                                                UInt,   toUInt );                   \
+      case X86G_CC_OP_UMULL:  ACTIONS_UMUL_##FLAG( 32, UInt,   toUInt,              \
+                                                ULong,  idULong );                  \
+                                                                                    \
+      case X86G_CC_OP_SMULB:  ACTIONS_SMUL_##FLAG(  8, Char,   toUChar,             \
+                                                Short,  toUShort );                 \
+      case X86G_CC_OP_SMULW:  ACTIONS_SMUL_##FLAG( 16, Short,  toUShort,            \
+                                                Int,    toUInt   );                 \
+      case X86G_CC_OP_SMULL:  ACTIONS_SMUL_##FLAG( 32, Int,    toUInt,              \
+                                                Long,   idULong );                  \
+                                                                                    \
+      default:                                                                      \
+         /* shouldn't really make these calls from generated code */                \
+         vex_printf("x86g_calculate_eflags_all_WRK(X86)"                            \
+                    "( %u, 0x%x, 0x%x, 0x%x )\n",                                   \
+                    cc_op, cc_dep1_formal, cc_dep2_formal, cc_ndep_formal );        \
+         vpanic("x86g_calculate_eflags_all_WRK(X86)");                              \
+   }                                                                                \
 }
 
 
+z3_x86g_calculate_eflags_(cf);
+z3_x86g_calculate_eflags_(pf);
+z3_x86g_calculate_eflags_(af);
+z3_x86g_calculate_eflags_(zf);
+z3_x86g_calculate_eflags_(sf);
+z3_x86g_calculate_eflags_(of);
 
 
 
-
-z3_amd64g_calculate_rflags_(cf);
-z3_amd64g_calculate_rflags_(pf);
-z3_amd64g_calculate_rflags_(af);
-z3_amd64g_calculate_rflags_(zf);
-z3_amd64g_calculate_rflags_(sf);
-z3_amd64g_calculate_rflags_(of);
 
 
 
 /* CALLED FROM GENERATED CODE: CLEAN HELPER */
 /* returns 1 or 0 */
-
-static inline Vns _z3_amd64g_calculate_condition(ULong/*AMD64Condcode*/ cond,
-    ULong cc_op,
-    Vns &cc_dep1,
-    Vns &cc_dep2,
-    Vns &cc_ndep)
+inline Vns _z3_x86g_calculate_condition (  Int/*X86Condcode*/ cond,
+                                    Int cc_op,
+                                    Vns& cc_dep1, 
+                                    Vns& cc_dep2,
+                                    Vns& cc_ndep )
 {
-    switch (cond) {
-    case AMD64CondNO:
-    case AMD64CondO: /* OF == 1 */
-        return  z3_amd64g_calculate_rflags_of(cc_op, cc_dep1, cc_dep2, cc_ndep);
+   
+   switch (cond) {
+      case X86CondNO:
+      case X86CondO: /* OF == 1 */
+         return z3_x86g_calculate_eflags_of(cc_op, cc_dep1, cc_dep2, cc_ndep);
 
-    case AMD64CondNZ:
-    case AMD64CondZ: /* ZF == 1 */
-        return  z3_amd64g_calculate_rflags_zf(cc_op, cc_dep1, cc_dep2, cc_ndep);
+      case X86CondNZ:
+      case X86CondZ: /* ZF == 1 */
+         return z3_x86g_calculate_eflags_zf(cc_op, cc_dep1, cc_dep2, cc_ndep);
 
-    case AMD64CondNB:
-    case AMD64CondB: /* CF == 1 */
-        return  z3_amd64g_calculate_rflags_cf(cc_op, cc_dep1, cc_dep2, cc_ndep);
+      case X86CondNB:
+      case X86CondB: /* CF == 1 */
+         return z3_x86g_calculate_eflags_cf(cc_op, cc_dep1, cc_dep2, cc_ndep);
 
-    case AMD64CondNBE:
-    case AMD64CondBE: /* (CF or ZF) == 1 */
-        return  z3_amd64g_calculate_rflags_cf(cc_op, cc_dep1, cc_dep2, cc_ndep) || z3_amd64g_calculate_rflags_zf(cc_op, cc_dep1, cc_dep2, cc_ndep);
+      case X86CondNBE:
+      case X86CondBE: /* (CF or ZF) == 1 */
+         return z3_x86g_calculate_eflags_cf(cc_op, cc_dep1, cc_dep2, cc_ndep) || z3_x86g_calculate_eflags_zf(cc_op, cc_dep1, cc_dep2, cc_ndep);
+         
 
-    case AMD64CondNS:
-    case AMD64CondS: /* SF == 1 */
-        return  z3_amd64g_calculate_rflags_sf(cc_op, cc_dep1, cc_dep2, cc_ndep);
+      case X86CondNS:
+      case X86CondS: /* SF == 1 */
+         return z3_x86g_calculate_eflags_sf(cc_op, cc_dep1, cc_dep2, cc_ndep);
 
-    case AMD64CondNP:
-    case AMD64CondP: /* PF == 1 */
-        return  z3_amd64g_calculate_rflags_pf(cc_op, cc_dep1, cc_dep2, cc_ndep);
+      case X86CondNP:
+      case X86CondP: /* PF == 1 */
+         return z3_x86g_calculate_eflags_pf(cc_op, cc_dep1, cc_dep2, cc_ndep);
 
-    case AMD64CondNL:
-    case AMD64CondL: /* (SF xor OF) == 1 */
-        return z3_amd64g_calculate_rflags_sf(cc_op, cc_dep1, cc_dep2, cc_ndep).boolXor(z3_amd64g_calculate_rflags_of(cc_op, cc_dep1, cc_dep2, cc_ndep));
-          
-    case AMD64CondNLE:
-    case AMD64CondLE: /* ((SF xor OF) or ZF)  == 1 */ {
-        auto sf = z3_amd64g_calculate_rflags_sf(cc_op, cc_dep1, cc_dep2, cc_ndep);
-        auto of = z3_amd64g_calculate_rflags_of(cc_op, cc_dep1, cc_dep2, cc_ndep);
-        auto zf = z3_amd64g_calculate_rflags_zf(cc_op, cc_dep1, cc_dep2, cc_ndep);
-        return   (sf.boolXor(of)) || zf;
-    }
-    default:
-        /* shouldn't really make these calls from generated code */
-        vex_printf("amd64g_calculate_condition"
-            "( %llu, %llu, 0x%llx, 0x%llx, 0x%llx )\n",
-            cond, cc_op, cc_dep1, cc_dep2, cc_ndep);
-        vpanic("amd64g_calculate_condition");
-    }
+      case X86CondNL:
+      case X86CondL: /* (SF xor OF) == 1 */
+         return z3_x86g_calculate_eflags_sf(cc_op, cc_dep1, cc_dep2, cc_ndep).boolXor(z3_x86g_calculate_eflags_of(cc_op, cc_dep1, cc_dep2, cc_ndep));
+
+      case X86CondNLE:
+      case X86CondLE: /* ((SF xor OF) or ZF)  == 1 */{
+         auto sf = z3_amd64g_calculate_rflags_sf(cc_op, cc_dep1, cc_dep2, cc_ndep);
+         auto of = z3_amd64g_calculate_rflags_of(cc_op, cc_dep1, cc_dep2, cc_ndep);
+         auto zf = z3_amd64g_calculate_rflags_zf(cc_op, cc_dep1, cc_dep2, cc_ndep);
+         return (sf.boolXor(of)) || zf;
+      }
+      default:
+         /* shouldn't really make these calls from generated code */
+         vex_printf("x86g_calculate_condition( %u, %u, 0x%x, 0x%x, 0x%x )\n",
+                    cond, cc_op, cc_dep1, cc_dep2, cc_ndep );
+         vpanic("x86g_calculate_condition");
+   }
 }
 
 
-Vns z3_amd64g_calculate_condition(Vns/*AMD64Condcode*/ &cond,
-    Vns &cc_op,
-    Vns &cc_dep1,
-    Vns &cc_dep2,
-    Vns &cc_ndep)
+Vns z3_x86g_calculate_condition(
+    Vns&/*X86Condcode*/ cond,
+    Vns& cc_op,
+    Vns& cc_dep1,
+    Vns& cc_dep2,
+    Vns& cc_ndep)
 {
-    auto flag = _z3_amd64g_calculate_condition(cond, cc_op, cc_dep1, cc_dep2, cc_ndep);
-    if (((ULong)cond & 1)) {
-        flag = !  flag;
+    auto flag = _z3_x86g_calculate_condition(cond, cc_op, cc_dep1, cc_dep2, cc_ndep);
+    if (((UInt)cond & 1)) {
+        flag = !flag;
     }
     if (flag.real()) {
-        return ((UChar)flag) ? Vns(cond, 1ull) : Vns(cond, 0ull);
+        return ((UChar)flag) ? Vns(cond, 1u) : Vns(cond, 0u);
     }
     else {
-        return Vns(cond, Z3_mk_ite(cond, flag, Vns(cond, 1ull), Vns(cond, 0ull)), 64);
+        return Vns(cond, Z3_mk_ite(cond, flag, Vns(cond, 1u), Vns(cond, 0u)), 32);
     }
 }
 
-
-
-static inline Vns z3_amd64g_calculate_rflags_c(Vns &cc_op,
-    Vns & cc_dep1,
-    Vns & cc_dep2,
-    Vns & cc_ndep)
+Vns z3_x86g_calculate_eflags_c(Vns& cc_op,
+    Vns& cc_dep1,
+    Vns& cc_dep2,
+    Vns& cc_ndep)
 {
-    /* Fast-case some common ones. */
-    switch ((int)cc_op) {
-    case AMD64G_CC_OP_LOGICQ:
-    case AMD64G_CC_OP_LOGICL:
-    case AMD64G_CC_OP_LOGICW:
-    case AMD64G_CC_OP_LOGICB:
-        return Vns(cc_op, 0ull);
-    default:
-        break;
-    }
-
-    auto flag = z3_amd64g_calculate_rflags_cf(cc_op, cc_dep1, cc_dep2, cc_ndep);
+    auto flag = z3_x86g_calculate_eflags_cf(cc_op, cc_dep1, cc_dep2, cc_ndep);
     if (flag.real()) {
-        return ((UChar)flag) ? Vns(cc_op, 1ull) : Vns(cc_op, 0ull);
+        return ((UChar)flag) ? Vns(cc_op, 1u) : Vns(cc_op, 0u);
     }
     else {
-        return Vns(cc_op, Z3_mk_ite(cc_op, flag, Vns(cc_op, 1ull, 64), Vns(cc_op, 0ull, 64)), 64);
+        return Vns(cc_op, Z3_mk_ite(cc_op, flag, Vns(cc_op, 1u), Vns(cc_op, 0u)), 32);
     }
 }
 
-#undef z3_amd64g_calculate_rflags_
+
+#undef z3_x86g_calculate_rflags_
 #undef CC_DEP1
 #undef CC_DEP2
 #undef CC_NDEP

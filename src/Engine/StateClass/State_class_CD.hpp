@@ -23,8 +23,20 @@ typedef Vns (*Z3_Function2)(Vns &, Vns &);
 typedef Vns (*Z3_Function1)(Vns &);
 
 
-static std::mutex global_state_mutex;
-static Bool TriggerBug_is_init = False;
+extern std::hash_map<Addr64, Hook_struct> CallBackDict;
+extern ThreadPool *pool;
+extern void* funcDict(void*);
+extern __m256i m32_fast[33];
+extern __m256i m32_mask_reverse[33];
+extern Vns ir_temp[MAX_THREADS][400];
+extern State*		_states[MAX_THREADS];
+extern std::mutex global_state_mutex;
+extern Bool TriggerBug_is_init ;
+//call back
+extern State_Tag(*Ijk_call_back)(State *, IRJumpKind);
+extern Super		pState_fork;
+
+
 
 class State {
 private:
@@ -33,12 +45,12 @@ private:
 	void *VexGuestARCHState;
 
 public:
+	PyObject *base;
 	z3::context m_ctx;
 	z3::solver solv;
 	std::queue< std::function<void()> > check_stack;
 	Long delta;
 	std::mutex unit_lock;
-	PyObject *base;
 
 protected:
 	Bool need_record;
@@ -70,8 +82,9 @@ public:
 
 
 
-	State(char *filename, Addr64 gse, Bool ) ;
-	State(State *father_state, Addr64 gse) ;
+	State(char *filename, Addr64 gse, Bool _need_record, PyObject *_base) ;
+	State(State *father_state, Addr64 gse, PyObject *_base) ;
+
 
 	~State() ;
 	void thread_register();
@@ -91,7 +104,6 @@ public:
 
 	inline Vns CCall(IRCallee *cee, IRExpr **exp_args, IRType ty);
 	void read_mem_dump(const char *);
-	PAGE* getMemPage(Addr64 addr);
 	inline Vns T_Unop(IROp, IRExpr*);
 	inline Vns T_Binop(IROp, IRExpr*, IRExpr*);
 	inline Vns T_Triop(IROp, IRExpr*, IRExpr*, IRExpr*);

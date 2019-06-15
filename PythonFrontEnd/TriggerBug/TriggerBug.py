@@ -14,10 +14,10 @@ coloredlogs.install(level=logging.INFO, isatty=True,
                     )
 
 from .TriggerBugCore import *
-import builtins
 import ctypes
 
-builtins.z3lib = ctypes.CDLL(name="libz3.dll", handle=EngineLib.Z3_Model_Handle())
+builtins.z3lib = ctypes.CDLL(name="libz3.dll", handle=EngineLib.TB_Z3_Model_Handle())
+
 from .z3 import z3
 from .TriggerBugCdll import init_engine_api
 from .TriggerBugConst import *
@@ -30,6 +30,12 @@ Guest_Arch = None
 GuestArchSystem = None
 _call_back = {}
 _IRJumpKind = {}
+
+def cState2pState(c_obj):
+    pState = EngineLib.TB_cState2pState(c_obj)
+    pState.refresh()
+    return pState
+
 
 
 class _Context(z3.Context):
@@ -74,9 +80,7 @@ class _Solver(z3.Solver):
 
 
 def _Hook_Server(state_ref):
-    _stateObj = StateObj(state_ref)
-    _stateObj.value = state_ref
-    s = State(_stateObj)
+    s = cState2pState(state_ref)
     pfun, cfun, pass_length = _call_back[s.guest_start]
     if (pass_length):
         EngineLib.hook_pass_code(s.State_obj, pass_length)
@@ -84,56 +88,65 @@ def _Hook_Server(state_ref):
     return result
 
 
-def _Ijk_Server(state_ref, ijk_kind_value):
-    _stateObj = StateObj(state_ref)
-    _stateObj.value = state_ref
-    s = State(_stateObj)
+def _Ijk_Server(StateObj, ijk_kind_value):
+    pState = cState2pState(StateObj)
     try:
         c = _IRJumpKind[ijk_kind_value]
         if(c):
-            return c(s, IRJumpKindNmae[ijk_kind_value])
+            return c(pState, IRJumpKindNmae[ijk_kind_value])
         else:
-            _log.error("Unsupported \taddr:%-18x #IRJumpKindNmae: %s #error: method TopState(..., Ijk_unsupport_call is None)", s.guest_start, IRJumpKindNmae[ijk_kind_value])
+            _log.error("Unsupported \taddr:%-18x #IRJumpKindNmae: %s #error: method TopState(..., Ijk_unsupport_call is None)", pState.guest_start, IRJumpKindNmae[ijk_kind_value])
             traceback.print_exc()
     except Exception as e:
         _log.error("#unknow error: %s", str(e))
         traceback.print_exc()
         sys.exit()
 
+def _State_Fork(father_obj):
+    pState = cState2pState(father_obj)
+    return State(pState)
 
 class State(object):
-    def __init__(self, _State_obj_types):
+    def __init__(self):
+        self.State_obj = None
+        self.guest_start_ep = None
+        self.guest_start = None
+        self.ctx = None
+        self.status = None
+        self.solver = None
+        self.arch = None
+        self.branch = None
+
+    def init(self, _State_obj_types):
         self.State_obj = _State_obj_types
-        self.guest_start_ep = EngineLib.state_guest_start_ep(_State_obj_types)
-        self.guest_start = EngineLib.state_guest_start(_State_obj_types)
-        self.ctx = _Context(EngineLib.StateCtx(_State_obj_types))
-        self.status = EngineLib.state_status(_State_obj_types)
-        self.solver = _Solver(state=self, solver=EngineLib.state_solver(_State_obj_types), ctx=self.ctx)
+        self.guest_start_ep = EngineLib.TB_state_guest_start_ep(_State_obj_types)
+        self.guest_start = EngineLib.TB_state_guest_start(_State_obj_types)
+        self.ctx = _Context(EngineLib.TB_state_ctx(_State_obj_types))
+        self.status = EngineLib.TB_state_status(_State_obj_types)
+        self.solver = _Solver(state=self, solver=EngineLib.TB_state_solver(_State_obj_types), ctx=self.ctx)
         self.arch = Guest_Arch
 
         self.branch = {}
         self.refresh()
 
     def refresh(self):
-        self.guest_start = EngineLib.state_guest_start(self.State_obj)
-        self.status = EngineLib.state_status(self.State_obj)
-        branch_list = EngineLib.stateBranch(self.State_obj)
+        self.guest_start = EngineLib.TB_state_guest_start(self.State_obj)
+        self.status = EngineLib.TB_state_status(self.State_obj)
+        branch_list = EngineLib.TB_state_branch(self.State_obj)
         branchSize = len(branch_list)
         branchArr = None
         self.branch = []
         for state_ref in branch_list:
-            _stateObj = StateObj(state_ref)
-            _stateObj.value = state_ref
-            s = State(_stateObj)
-            self.branch.append([s.guest_start_ep, s])
+            _stateObj = EngineLib.TB_cState2pState(state_ref)
+            self.branch.append([_stateObj.guest_start_ep, _stateObj])
 
     def hook_add(self, Address, callBackFunc, length=0):
-        cb = ctypes.cast(callback_ctypes(_Hook_Server), callback_ctypes)
+        cb = ctypes.cast(hook_cb_ctypes(_Hook_Server), hook_cb_ctypes)
         _call_back[Address] = [callBackFunc, cb, length]
         EngineLib.hook_add(self.State_obj, Address, cb)
 
     def hook_pass_code(self, pass_length):
-        EngineLib.hook_pass_code(self.State_obj, pass_length)
+        EngineLib.TB_state_delta(self.State_obj, pass_length)
 
     def mem_write(self, address, value, size):
         if (type(address) == int):
@@ -310,8 +323,10 @@ class State(object):
         self.regs_write(regName, value)
 
     def go(self):
-        EngineLib.state_go(self.State_obj)
+        EngineLib.TB_state_start(self.State_obj)
         self.refresh()
+    def wait(self):
+        EngineLib.TB_thread_wait()
 
     def compress(self, address, State_Flag, avoid_State_flags):
         if not isinstance(avoid_State_flags, list):
@@ -372,16 +387,14 @@ class State(object):
         ks = self.arch.keystone
         return ks.asm(codestr)
 
-Ijk_Server_cb = None
-
+_Ijk_Server_cb = None
+_State_Fork_cb = None
 
 def TopState(file_name=b'./TriggerBug.xml', need_record=False, oep=0, Ijk_unsupport_call=None,
              Ijk_hook_call=None):
     global Guest_Arch, GuestArchSystem
-    global Ijk_Server_cb
-    Ijk_Server_cb = ctypes.cast(ijk_callback_ctypes(_Ijk_Server), ijk_callback_ctypes)
-    EngineLib.init_Ijk_call_back(Ijk_Server_cb)
-
+    global _Ijk_Server_cb
+    global _State_Fork_cb
     DOMTree = xmldom.parse(file_name)
     TriggerBugNode = DOMTree.getElementsByTagName("TriggerBug")[0]
     VexArchValue = int(TriggerBugNode.getElementsByTagName("VexArch")[0].firstChild.data, 16)
@@ -409,7 +422,16 @@ def TopState(file_name=b'./TriggerBug.xml', need_record=False, oep=0, Ijk_unsupp
                 _IRJumpKind[_ijkoffset] = IjkFuns[ijkname]
             else:
                 _IRJumpKind[_ijkoffset] = Ijk_unsupport_call
-    state = EngineLib.new_state(file_name, 0, need_record)
-
-    return State(state)
+    _Ijk_Server_cb = ctypes.cast(ijk_call_cb_ctypes(_Ijk_Server), ijk_call_cb_ctypes)
+    _State_Fork_cb = ctypes.cast(Super_cb_ctypes(_State_Fork), Super_cb_ctypes)
+    state = State()
+    cState = EngineLib.TB_top_state(state,
+                                    _State_Fork_cb,
+                                    _Ijk_Server_cb,
+                                    file_name,
+                                    oep,
+                                    need_record
+                                    )
+    state.init(cState)
+    return state
 

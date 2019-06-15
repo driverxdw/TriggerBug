@@ -10,6 +10,20 @@
 #include "libvex_guest_ppc64.h"
 #include "libvex_guest_s390x.h"
 
+
+Vns ir_temp[MAX_THREADS][400];
+ThreadPool *pool = NULL;
+std::hash_map<Addr64, Hook_struct> CallBackDict;
+tinyxml2::XMLDocument doc;
+VexArch		guest;
+State*		_states[MAX_THREADS];
+std::mutex global_state_mutex;
+Bool TriggerBug_is_init = False;
+//call back
+State_Tag(*Ijk_call_back)(State *, IRJumpKind);
+Super		pState_fork;
+
+
 UChar arch_bitn = 64;
 unsigned char fastalignD1[257];
 unsigned char fastalign[257];
@@ -22,15 +36,6 @@ ULong fastMaskReverseI1[65];
 __m256i m32_fast[33];
 __m256i m32_mask_reverse[33];
 
-extern Vns ir_temp[MAX_THREADS][400];
-extern std::hash_map<Addr64, Hook_struct> CallBackDict;
-extern State_Tag(*Ijk_call_back)(State *, IRJumpKind);
-extern ThreadPool *pool;
-extern void* funcDict(void*);
-extern tinyxml2::XMLDocument doc;
-extern __m256i m32_fast[33];
-extern __m256i m32_mask_reverse[33];
-extern Super py_base_init;
 
 std::string replace(const char *pszSrc, const char *pszOld, const char *pszNew)
 {
@@ -115,7 +120,7 @@ bool traceJmp;
 bool traceState;
 bool PassSigSEGV;
 
-State::State(char *filename, Addr64 gse, Bool _need_record) :
+State::State(char *filename, Addr64 gse, Bool _need_record, PyObject *_base = NULL) :
 	m_ctx(), 
 	mem(&solv, &m_ctx,need_record),
 	regs(m_ctx, need_record), 
@@ -123,8 +128,10 @@ State::State(char *filename, Addr64 gse, Bool _need_record) :
 	status(NewState),
 	VexGuestARCHState(NULL),
 	delta(0),
-	base(NULL)
+	base(_base)
 {
+    pap.state = (void*)(this);
+    pap.n_page_mem = _n_page_mem;
 	if (!TriggerBug_is_init) 
 		Func_Map_Init();
 	doc.LoadFile(filename);
@@ -175,8 +182,12 @@ State::State(char *filename, Addr64 gse, Bool _need_record) :
 	else {
 		if (doc_TriggerBug->FirstChildElement("GuestStartAddress")) {
 			sscanf(doc_TriggerBug->FirstChildElement("GuestStartAddress")->GetText(), "%llx", &guest_start_ep);
+            if (!guest_start_ep) {
+                goto mem_ip;
+            }
 		}
 		else {
+mem_ip:
 			Int offset;
 			doc_TriggerBug->FirstChildElement("RegsIpOffset")->QueryIntText(&offset);
 			guest_start_ep = regs.Iex_Get(offset,Ity_I64);
@@ -190,7 +201,9 @@ State::State(char *filename, Addr64 gse, Bool _need_record) :
 	doc_TriggerBug->FirstChildElement("PassSigSEGV")->QueryBoolText((bool*)(&PassSigSEGV));
 	TriggerBug_is_init = True;
 };
-State::State(State *father_state, Addr64 gse) :
+
+
+State::State(State *father_state, Addr64 gse, PyObject *_base = NULL) :
 	m_ctx(),
 	mem(&solv, father_state->mem, &m_ctx, need_record), 
 	guest_start_ep(gse),
@@ -201,29 +214,31 @@ State::State(State *father_state, Addr64 gse) :
 	status(NewState),
 	VexGuestARCHState(NULL),
 	delta(0),
-	base(NULL)
+	base(_base)
 {
-	IR_init();
-	if (father_state->base) {
-		base = py_base_init(father_state->base);
+    pap.state = (void*)(this);
+    pap.n_page_mem = _n_page_mem;
+	if (!base) {
+		if (father_state->base) {
+			base = pState_fork(father_state->base);
+			assert(base);
+		}
 	}
+	IR_init();
 };
 
 State::~State() { 
 	unregister_tid(GetCurrentThreadId());
 	if (VexGuestARCHState) delete VexGuestARCHState;
 	for (auto s : branch) delete s;
-	if(base)
-		Py_DecRef(base);
 }
 	
-PAGE* State::getMemPage(Addr64 addr) { return mem.getMemPage(addr); };
 	
 inline State::operator context&() { return m_ctx; }
 inline State::operator Z3_context() { return m_ctx; }
 inline State::operator std::string(){
     std::string str;
-    char hex[20];
+    char hex[30];
     std::string strContent;
     
 
@@ -308,9 +323,6 @@ inline IRSB* State::BB2IR() {
 	pap.start_swap       = 0;
 	vta.guest_bytes      = (UChar *)(pap.t_page_addr);
 	vta.guest_bytes_addr = (Addr64)(guest_start);
-	vta.traceflags       = NULL;
-	//vta.traceflags = VEX_TRACE_FE;
-	vta.pap = &pap;
 	IRSB *irsb;
 	if(0){
 		printf("GUESTADDR %16llx   RUND:%ld CODES   ", guest_start, runed);
@@ -336,7 +348,7 @@ inline void State::add_assert(Vns & assert,Bool ToF)
 			asserts.push_back(assert);
 		}
 		else {
-			auto not = !assert;
+			auto not = !  assert;
 			Z3_solver_assert(m_ctx, solv, not);
 			asserts.push_back(not);
 		}
@@ -402,7 +414,6 @@ inline void State::thread_register()
 
 	auto i = temp_index();
 	_states[i] = this;
-	_Z3_contexts[i] = this->m_ctx;
 	for (int j = 0; j < 400; j++) {
 		ir_temp[i][j].m_kind = REAL;
 	}
@@ -426,6 +437,8 @@ void State::IR_init() {
 	LibVEX_default_VexArchInfo(&vai_host);
 	LibVEX_default_VexArchInfo(&vai_guest);
 	LibVEX_default_VexAbiInfo(&vbi);
+
+    vc.iropt_level = 1;
 
 	auto doc_VexControl = doc.FirstChildElement("TriggerBug")->FirstChildElement("VexControl");
 
@@ -467,6 +480,11 @@ void State::IR_init() {
 	vta.guest_extents = &vge;
 	vta.chase_into_ok = chase_into_ok;
 	vta.needs_self_check = needs_self_check;
+
+
+    vta.traceflags = NULL;
+    vta.traceflags = doc_VexControl->FirstChildElement("traceflags")->IntText();
+    vta.pap = &pap;
 }
 
 
@@ -562,7 +580,7 @@ inline Vns State::tIRExpr(IRExpr* e)
 		if (!VexGuestARCHState) {
 			switch (guest) {
 			case VexArchX86: VexGuestARCHState = new VexGuestX86State; break;
-			case VexArchAMD64: VexGuestARCHState = new VexGuestAMD64State; break;
+			case VexArchAMD64: VexGuestARCHState = new Regs::AMD64(*this); break;
 			case VexArchARM: VexGuestARCHState = new VexGuestARMState; break;
 			case VexArchARM64: VexGuestARCHState = new VexGuestARM64State; break;
 			case VexArchMIPS32: VexGuestARCHState = new VexGuestMIPS32State; break;
@@ -573,7 +591,7 @@ inline Vns State::tIRExpr(IRExpr* e)
 			default:vpanic("not support");
 			}
 		}
-		return Vns(m_ctx, (ULong)VexGuestARCHState, arch_bitn);
+		return Vns(m_ctx, VexGuestARCHState, arch_bitn);
 	};
 	case Iex_VECRET:
 	case Iex_Binder:
@@ -588,6 +606,8 @@ void State::start(Bool first_bkp_pass) {
 		vassert(0);
 	}
 	Bool NEED_CHECK = False;
+    auto doc_TriggerBug = doc.FirstChildElement("TriggerBug");
+    doc_TriggerBug->FirstChildElement("DEBUG")->FirstChildElement("NEED_CHECK")->QueryBoolText((bool*)&NEED_CHECK);
 	Bool is_first_bkp_pass = False;
 	Addr64 hook_bkp = NULL;
 	status = Running;
@@ -604,6 +624,7 @@ void State::start(Bool first_bkp_pass) {
 			for (;;) {
 For_Begin:
 				IRSB* irsb = BB2IR();
+                //ppIRSB(irsb);
 				if (traceJmp)
 					vex_printf("Jmp: %llx \n",guest_start); 
 
@@ -810,8 +831,6 @@ bkp_pass:
 							goto For_Begin;
 						}
 						else {
-							__m256i m32 = mem.Iex_Load<Ity_V256>(guest_start);
-							m32.m256i_i8[0] = _where->second.original;
 							if (!is_first_bkp_pass) {
 								status = (_where->second.cb)(this);//State::delta maybe changed by callback
 								if (status != Running) {
@@ -827,12 +846,11 @@ bkp_pass:
 								goto For_Begin;
 							}
 							else {
+                                __m256i m32 = mem.Iex_Load<Ity_V256>(guest_start);
+                                m32.m256i_i8[0] = _where->second.original;
 								pap.start_swap = 2;
 								vta.guest_bytes = (UChar *)(&m32);
 								vta.guest_bytes_addr = (Addr64)(guest_start);
-								vta.traceflags = NULL;
-								//vta.traceflags = VEX_TRACE_FE;
-								vta.pap = &pap; 
 								auto max_insns = pap.guest_max_insns;
 								pap.guest_max_insns = 1;
 								irsb = LibVEX_FrontEnd(&vta, &res, &pxControl);

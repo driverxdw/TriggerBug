@@ -33,7 +33,11 @@
    without prior written permission.
 */
 #include "Engine/engine.hpp"
-
+#include "Engine/SimulationEngine/Variable.hpp"
+#include "Engine/SimulationEngine/Register.hpp"
+#include "Engine/SimulationEngine/memory.hpp"
+#include "Engine/StateClass/State_class_CD.hpp"
+#include "Engine/Z3_Target_Call/Guest_Helper.hpp"
 extern "C" {
 
 #include "libvex_basictypes.h"
@@ -2182,7 +2186,46 @@ void do_get_x87( /*IN*/VexGuestAMD64State* vex_state,
 	x87_state->env[FP_ENV_TAG] = toUShort(tagw);
 }
 
+static
+void do_get_x87( /*IN*/Regs::AMD64* vex_state,
+	/*OUT*/Fpu_State* x87_state)
+{
+	Int        i, stno, preg;
+	UInt       tagw;
+	helper::Pointer<Register<1000>, ULong>     vexRegs = (helper::Pointer<Register<1000>, ULong>)(&vex_state->guest_FPREG[0]);
+	helper::Pointer<Register<1000>, UChar>     vexTags = (helper::Pointer<Register<1000>, UChar>)(&vex_state->guest_FPTAG[0]);
+	UInt       ftop = vex_state->guest_FTOP;
+	UInt       c3210 = vex_state->guest_FC3210;
 
+	for (i = 0; i < 14; i++)
+		x87_state->env[i] = 0;
+
+	x87_state->env[1] = x87_state->env[3] = x87_state->env[5]
+		= x87_state->env[13] = 0xFFFF;
+	x87_state->env[FP_ENV_STAT]
+		= toUShort(((ftop & 7) << 11) | (c3210 & 0x4700));
+	x87_state->env[FP_ENV_CTRL]
+		= toUShort(amd64g_create_fpucw(vex_state->guest_FPROUND));
+
+	/* Dump the register stack in ST order. */
+	tagw = 0;
+	for (stno = 0; stno < 8; stno++) {
+		preg = (stno + ftop) & 7;
+		if (vexTags[preg] == 0) {
+			/* register is empty */
+			tagw |= (3 << (2 * preg));
+			convert_f64le_to_f80le((UChar*)&vexRegs[preg],
+				&x87_state->reg[10 * stno]);
+		}
+		else {
+			/* register is full. */
+			tagw |= (0 << (2 * preg));
+			convert_f64le_to_f80le((UChar*)&vexRegs[preg],
+				&x87_state->reg[10 * stno]);
+		}
+	}
+	x87_state->env[FP_ENV_TAG] = toUShort(tagw);
+}
 /*---------------------------------------------------------------*/
 /*--- Supporting functions for XSAVE/FXSAVE.                  ---*/
 /*---------------------------------------------------------------*/
@@ -2191,7 +2234,7 @@ void do_get_x87( /*IN*/VexGuestAMD64State* vex_state,
 /* DIRTY HELPER (reads guest state, writes guest mem) */
 /* XSAVE component 0 is the x87 FPU state. */
 void amd64g_dirtyhelper_XSAVE_COMPONENT_0
-(VexGuestAMD64State* gst, HWord addr)
+(VexGuestAMD64State* _gst, HWord addr)
 {
 	/* Derived from values obtained from
 	   vendor_id       : AuthenticAMD
@@ -2203,9 +2246,10 @@ void amd64g_dirtyhelper_XSAVE_COMPONENT_0
 	   cache size      : 512 KB
 	*/
 	/* Somewhat roundabout, but at least it's simple. */
+	Regs::AMD64* gst = (Regs::AMD64*)_gst;
 	Fpu_State tmp;
-	UShort*   addrS = (UShort*)addr;
-	UChar*    addrC = (UChar*)addr;
+	helper::UShort_   addrS (*gst, addr);
+	helper::UChar_    addrC (*gst, addr);
 	UShort    fp_tags;
 	UInt      summary_tags;
 	Int       r, stno;

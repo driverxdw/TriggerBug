@@ -3,17 +3,17 @@
 #define Z3_Get_Ref(exp) (((int*)((Z3_ast)((exp))))[2])
 
 
-#define TESTCODE(code)																								    	 \
-{																															 \
-	LARGE_INTEGER   freq = { 0 };																							 \
-	LARGE_INTEGER   beginPerformanceCount = { 0 };																			 \
-	LARGE_INTEGER   closePerformanceCount = { 0 };																			 \
-	QueryPerformanceFrequency(&freq);																						 \
-	QueryPerformanceCounter(&beginPerformanceCount);																		 \
-	{code	}																												 \
-	QueryPerformanceCounter(&closePerformanceCount);																		 \
-	double delta_seconds = (double)(closePerformanceCount.QuadPart - beginPerformanceCount.QuadPart) / freq.QuadPart;		 \
-	printf("%s line:%d spend %lf \n",__FILE__, __LINE__, delta_seconds);													 \
+#define TESTCODE(code)                                                                                                         \
+{                                                                                                                             \
+    LARGE_INTEGER   freq = { 0 };                                                                                             \
+    LARGE_INTEGER   beginPerformanceCount = { 0 };                                                                             \
+    LARGE_INTEGER   closePerformanceCount = { 0 };                                                                             \
+    QueryPerformanceFrequency(&freq);                                                                                         \
+    QueryPerformanceCounter(&beginPerformanceCount);                                                                         \
+    {code    }                                                                                                                 \
+    QueryPerformanceCounter(&closePerformanceCount);                                                                         \
+    double delta_seconds = (double)(closePerformanceCount.QuadPart - beginPerformanceCount.QuadPart) / freq.QuadPart;         \
+    printf("%s line:%d spend %lf \n",__FILE__, __LINE__, delta_seconds);                                                     \
 }
 
 #define mem_w(addr_in, value) state->mem.Ist_Store_R((Addr64)(&(addr_in)), value);
@@ -47,15 +47,15 @@ extern ULong fastMaskReverse[65];
 extern ULong fastMaskReverseI1[65];
 
 
+template <int maxlength> class Register;
 class State;
-class Vns;
 
 
 typedef enum :unsigned int {
-	NewState = 0,
-	Running,
-	Fork,
-	Death
+    NewState = 0,
+    Running,
+    Fork,
+    Death
 }State_Tag;
 
 
@@ -63,8 +63,8 @@ typedef enum :unsigned int {
 typedef State_Tag(*CallBack)(State *);
 typedef PyObject *(*Super)(PyObject *);
 typedef struct _Hook {
-	CallBack cb;
-	UChar original;
+    CallBack cb;
+    UChar original;
 }Hook_struct;
 
 
@@ -73,7 +73,7 @@ typedef struct _Hook {
 #ifdef _DEBUG
 
 #define vassert(expr)                                           \
-  ((void) ((expr) ? 0 :											\
+  ((void) ((expr) ? 0 :                                            \
            (vex_assert_fail (#expr,                             \
                              __FILE__, __LINE__,                \
                              __FUNCSIG__), 0)))
@@ -124,50 +124,46 @@ typedef struct _Hook {
 #define MV32(addr,fromaddr) *(__m256i*)((addr))=(*(__m256i*)((fromaddr)))
 
 typedef enum:unsigned char {
-	nothing,
-	symbolic,
-	numreal
+    nothing,
+    symbolic,
+    numreal
 }memTAG;
 
 
 
 inline __m128i _mm_not_si128(__m128i a) {
-	__m128i r;
-	r.m128i_u64[0] = ~a.m128i_u64[0];
-	r.m128i_u64[1] = ~a.m128i_u64[1];
-	return  r;
+    __m128i r;
+    r.m128i_u64[0] = ~a.m128i_u64[0];
+    r.m128i_u64[1] = ~a.m128i_u64[1];
+    return  r;
 }
 inline __m256i _mm256_not_si256(__m256i a) {
-	__m256i r;
-	r.m256i_u64[0] = ~a.m256i_u64[0];
-	r.m256i_u64[1] = ~a.m256i_u64[1];
-	r.m256i_u64[2] = ~a.m256i_u64[2];
-	r.m256i_u64[3] = ~a.m256i_u64[3];
-	return r;
+    __m256i r;
+    r.m256i_u64[0] = ~a.m256i_u64[0];
+    r.m256i_u64[1] = ~a.m256i_u64[1];
+    r.m256i_u64[2] = ~a.m256i_u64[2];
+    r.m256i_u64[3] = ~a.m256i_u64[3];
+    return r;
 }
 
 inline Z3_ast Z3_mk_neq(Z3_context ctx, Z3_ast a, Z3_ast b) {
-	auto eq = Z3_mk_eq(ctx, a, b);
-	Z3_inc_ref(ctx, eq);
-	auto re = Z3_mk_not(ctx, eq);
-	Z3_dec_ref(ctx, eq);
-	return re;
+    auto eq = Z3_mk_eq(ctx, a, b);
+    Z3_inc_ref(ctx, eq);
+    auto re = Z3_mk_not(ctx, eq);
+    Z3_dec_ref(ctx, eq);
+    return re;
 }
 
-extern std::mutex global_user_mutex;
 extern std::string replace(const char *pszSrc, const char *pszOld, const char *pszNew);
 extern unsigned int eval_all(std::vector<Z3_ast> &result, z3::solver &solv, Z3_ast nia);
+extern unsigned char * _n_page_mem(void *);
 extern LARGE_INTEGER   freq_global;
 extern LARGE_INTEGER   beginPerformanceCount_global;
 extern LARGE_INTEGER   closePerformanceCount_global;
 extern VexArch guest;
 extern State *_states[MAX_THREADS];
-extern Z3_context _Z3_contexts[MAX_THREADS];
-
-
 
 #define current_state() _states[temp_index()]
-
 
 #endif // HEADER_H
 

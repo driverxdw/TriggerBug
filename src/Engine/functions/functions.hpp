@@ -92,7 +92,7 @@ static z3::sort translateRM(z3::context&m_ctx, IRRoundingMode md) {
 		vpanic("translateRM ???");
 	}
 	
- }
+}
 
 
 static inline IRType length2ty(UShort bit) {
