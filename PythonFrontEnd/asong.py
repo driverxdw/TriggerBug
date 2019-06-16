@@ -1,4 +1,7 @@
+#coding:utf-8
+import archinfo
 import builtins
+
 builtins.TriggerBug_Debug = True
 import TriggerBug
 from TriggerBug.z3  import *

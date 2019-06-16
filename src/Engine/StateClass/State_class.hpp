@@ -24,7 +24,6 @@ State_Tag(*Ijk_call_back)(State *, IRJumpKind);
 Super		pState_fork;
 
 
-UChar arch_bitn = 64;
 unsigned char fastalignD1[257];
 unsigned char fastalign[257];
 ULong fastMask[65];
@@ -57,7 +56,10 @@ std::string replace(const char *pszSrc, const char *pszOld, const char *pszNew)
 	return strContent;
 }
 
-
+//bool branch_check_avoid(ADDR _addr) {
+//    for (auto )
+//    return avoid_branch_oep.(_addr) == avoid_branch_oep.end();
+//}
 
 inline unsigned int eval_all(std::vector<Z3_ast> &result, solver &solv, Z3_ast nia) {
 	//std::cout << nia << std::endl;
@@ -228,7 +230,6 @@ State::State(State *father_state, Addr64 gse, PyObject *_base = NULL) :
 };
 
 State::~State() { 
-	unregister_tid(GetCurrentThreadId());
 	if (VexGuestARCHState) delete VexGuestARCHState;
 	for (auto s : branch) delete s;
 }
@@ -322,7 +323,7 @@ inline IRSB* State::BB2IR() {
 	mem.set_double_page(guest_start, pap);
 	pap.start_swap       = 0;
 	vta.guest_bytes      = (UChar *)(pap.t_page_addr);
-	vta.guest_bytes_addr = (Addr64)(guest_start);
+	vta.guest_bytes_addr = (Addr64)((ADDR)guest_start);
 	IRSB *irsb;
 	if(0){
 		printf("GUESTADDR %16llx   RUND:%ld CODES   ", guest_start, runed);
@@ -354,9 +355,9 @@ inline void State::add_assert(Vns & assert,Bool ToF)
 		}
 	}
 	else {
-		auto ass = (assert == 1);
-		Z3_solver_assert(m_ctx, solv, ass);
-		asserts.push_back(ass);
+        auto ass = (assert == (Bool)ToF);
+        Z3_solver_assert(m_ctx, solv, ass);
+        asserts.push_back(ass);
 	}
 }
 
@@ -370,7 +371,6 @@ inline void State::add_assert_eq(Vns & eqA, Vns & eqB)
 inline void State::write_regs(int offset, void* addr, int length) { regs.write_regs(offset, addr, length); }
 inline void State::read_regs(int offset, void* addr, int length) { regs.read_regs(offset, addr, length); }
 
-
 inline Vns State::CCall(IRCallee *cee, IRExpr **exp_args, IRType ty)
 {
 	Int regparms = cee->regparms;
@@ -379,25 +379,23 @@ inline Vns State::CCall(IRCallee *cee, IRExpr **exp_args, IRType ty)
 
 	Vns arg0 = tIRExpr(exp_args[0]);
 	if (arg0.symbolic()) z3_mode = True;
-	if (!exp_args[1]) return (z3_mode) ? ((Z3_Function1)(funcDict(cee->addr)))(arg0) : Vns(m_ctx, ((Function1)(cee->addr))(arg0));
+	if (!exp_args[1]) return (z3_mode) ? ((Z3_Function1)(funcDict(cee->addr)))(arg0) : Vns(m_ctx, ((Function_1)(cee->addr))(arg0));
 	Vns arg1 = tIRExpr(exp_args[1]);
 	if (arg1.symbolic()) z3_mode = True;
-	if (!exp_args[2]) return (z3_mode) ? ((Z3_Function2)(funcDict(cee->addr)))(arg0, arg1) : Vns(m_ctx, ((Function2)(cee->addr))(arg0, arg1));
+	if (!exp_args[2]) return (z3_mode) ? ((Z3_Function2)(funcDict(cee->addr)))(arg0, arg1) : Vns(m_ctx, ((Function_2)(cee->addr))(arg0, arg1));
 	Vns arg2 = tIRExpr(exp_args[2]);
 	if (arg2.symbolic()) z3_mode = True;
-	if (!exp_args[3]) return (z3_mode) ? ((Z3_Function3)(funcDict(cee->addr)))(arg0, arg1, arg2) : Vns(m_ctx, ((Function3)(cee->addr))(arg0, arg1, arg2));
+	if (!exp_args[3]) return (z3_mode) ? ((Z3_Function3)(funcDict(cee->addr)))(arg0, arg1, arg2) : Vns(m_ctx, ((Function_3)(cee->addr))(arg0, arg1, arg2));
 	Vns arg3 = tIRExpr(exp_args[3]);
 	if (arg3.symbolic()) z3_mode = True;
-	if (!exp_args[4]) return (z3_mode) ? ((Z3_Function4)(funcDict(cee->addr)))(arg0, arg1, arg2, arg3) : Vns(m_ctx, ((Function4)(cee->addr))(arg0, arg1, arg2, arg3));
+	if (!exp_args[4]) return (z3_mode) ? ((Z3_Function4)(funcDict(cee->addr)))(arg0, arg1, arg2, arg3) : Vns(m_ctx, ((Function_4)(cee->addr))(arg0, arg1, arg2, arg3));
 	Vns arg4 = tIRExpr(exp_args[4]);
 	if (arg4.symbolic()) z3_mode = True;
-	if (!exp_args[5]) return (z3_mode) ? ((Z3_Function5)(funcDict(cee->addr)))(arg0, arg1, arg2, arg3, arg4) : Vns(m_ctx, ((Function5)(cee->addr))(arg0, arg1, arg2, arg3, arg4));
+	if (!exp_args[5]) return (z3_mode) ? ((Z3_Function5)(funcDict(cee->addr)))(arg0, arg1, arg2, arg3, arg4) : Vns(m_ctx, ((Function_5)(cee->addr))(arg0, arg1, arg2, arg3, arg4));
 	Vns arg5 = tIRExpr(exp_args[5]);
 	if (arg5.symbolic()) z3_mode = True;
-	if (!exp_args[6]) return (z3_mode) ? ((Z3_Function6)(funcDict(cee->addr)))(arg0, arg1, arg2, arg3, arg4, arg5) : Vns(m_ctx, ((Function6)(cee->addr))(arg0, arg1, arg2, arg3, arg4, arg5));
-
+	if (!exp_args[6]) return (z3_mode) ? ((Z3_Function6)(funcDict(cee->addr)))(arg0, arg1, arg2, arg3, arg4, arg5) : Vns(m_ctx, ((Function_6)(cee->addr))(arg0, arg1, arg2, arg3, arg4, arg5));
 }
-
 
 Bool chase_into_ok(void *value,Addr addr) {
 	std::cout << value << addr << std::endl;
@@ -591,7 +589,7 @@ inline Vns State::tIRExpr(IRExpr* e)
 			default:vpanic("not support");
 			}
 		}
-		return Vns(m_ctx, VexGuestARCHState, arch_bitn);
+		return Vns(m_ctx, VexGuestARCHState);
 	};
 	case Iex_VECRET:
 	case Iex_Binder:
@@ -633,6 +631,24 @@ For_Begin_NO_Trans:
 					IRStmt *s = irsb->stmts[i];
 					if (guest_start == traceIrAddrress) { 
 						NEED_CHECK = True; 
+                        //if (ir_temp[t_index][19].real()) {
+                        //    if (0x04fef70 == (ADDR)ir_temp[t_index][19]) {
+                        //        auto dfd = ir_temp[t_index][17];
+                        //        std::cout << "???" << (int)ir_temp[t_index][24].bitn << std::endl;
+                        //        std::cout <<"???"<< (int)ir_temp[t_index][24].m_kind << std::endl;
+                        //        std::cout << Z3_ast_to_string(m_ctx, ir_temp[t_index][24]) << std::endl;
+                        //        std::cout << "???" << (int)ir_temp[t_index][24].m_kind << std::endl;
+                        //        std::cout << "???" << (int)ir_temp[t_index][24].sort_kind() << std::endl;
+
+                        //        auto fg1 = (Z3_context)Vns(m_ctx, 0, 16);
+                        //        auto fg2 = (Z3_context)ir_temp[t_index][24];
+                        //        std::cout << "jjj" << fg1<< fg2 << std::endl;
+
+                        //        Vns sdf(m_ctx, Z3_mk_bvsub(m_ctx, ir_temp[t_index][24], dfd), 16);
+                        //        //Vns sdf(m_ctx, Z3_mk_bvsub(m_ctx, Vns(m_ctx, 0, 16), dfd), 16);
+                        //        std::cout << Z3_ast_to_string(m_ctx, sdf) << std::endl;
+                        //    }
+                        //}
 					}
 					if(NEED_CHECK) ppIRStmt(s);
 					switch (s->tag) {
@@ -823,7 +839,7 @@ Exit_guard_true:
 				case Ijk_Ret:           break;
 				case Ijk_SigTRAP:		{
 bkp_pass:
-					auto _where = CallBackDict.lower_bound(guest_start);
+					auto _where = CallBackDict.lower_bound((ADDR)guest_start);
 					if (_where != CallBackDict.end()) {
 						if (hook_bkp) {
 							guest_start = hook_bkp;
@@ -850,13 +866,13 @@ bkp_pass:
                                 m32.m256i_i8[0] = _where->second.original;
 								pap.start_swap = 2;
 								vta.guest_bytes = (UChar *)(&m32);
-								vta.guest_bytes_addr = (Addr64)(guest_start);
+								vta.guest_bytes_addr = (Addr64)((ADDR)guest_start);
 								auto max_insns = pap.guest_max_insns;
 								pap.guest_max_insns = 1;
 								irsb = LibVEX_FrontEnd(&vta, &res, &pxControl);
 								ppIRSB(irsb);
 								pap.guest_max_insns = max_insns;
-								hook_bkp = guest_start + irsb->stmts[0]->Ist.IMark.len;
+								hook_bkp = (ADDR)guest_start + irsb->stmts[0]->Ist.IMark.len;
 								irsb->jumpkind = Ijk_SigTRAP;
 								goto For_Begin_NO_Trans;
 							}

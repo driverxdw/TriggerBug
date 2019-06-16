@@ -2,6 +2,11 @@
 #define HEADER_H
 #define Z3_Get_Ref(exp) (((int*)((Z3_ast)((exp))))[2])
 
+#if defined(GUEST_IS_64)
+#define ADDR unsigned long long
+#else
+#define ADDR unsigned int
+#endif
 
 #define TESTCODE(code)                                                                                                         \
 {                                                                                                                             \
@@ -69,8 +74,7 @@ typedef struct _Hook {
 
 
 
-
-#ifdef _DEBUG
+#if defined(_DEBUG)||1
 
 #define vassert(expr)                                           \
   ((void) ((expr) ? 0 :                                            \
@@ -162,7 +166,7 @@ extern LARGE_INTEGER   beginPerformanceCount_global;
 extern LARGE_INTEGER   closePerformanceCount_global;
 extern VexArch guest;
 extern State *_states[MAX_THREADS];
-
+extern std::vector<Addr64> avoid_branch_oep;
 #define current_state() _states[temp_index()]
 
 #endif // HEADER_H

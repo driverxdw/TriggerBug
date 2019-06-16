@@ -8,12 +8,21 @@ typedef struct ChangeView {
 	ChangeView *front;
 }ChangeView;
 
-typedef ULong(*Function6)(ULong, ULong, ULong, ULong, ULong, ULong);
-typedef ULong(*Function5)(ULong, ULong, ULong, ULong, ULong);
-typedef ULong(*Function4)(ULong, ULong, ULong, ULong);
-typedef ULong(*Function3)(ULong, ULong, ULong);
-typedef ULong(*Function2)(ULong, ULong);
-typedef ULong(*Function1)(ULong);
+#if defined(GUEST_IS_64)
+typedef ULong(*Function_6)(ULong, ULong, ULong, ULong, ULong, ULong);
+typedef ULong(*Function_5)(ULong, ULong, ULong, ULong, ULong);
+typedef ULong(*Function_4)(ULong, ULong, ULong, ULong);
+typedef ULong(*Function_3)(ULong, ULong, ULong);
+typedef ULong(*Function_2)(ULong, ULong);
+typedef ULong(*Function_1)(ULong);
+#else
+typedef UInt(*Function_6)(UInt, UInt, UInt, UInt, UInt, UInt);
+typedef UInt(*Function_5)(UInt, UInt, UInt, UInt, UInt);
+typedef UInt(*Function_4)(UInt, UInt, UInt, UInt);
+typedef UInt(*Function_3)(UInt, UInt, UInt);
+typedef UInt(*Function_2)(UInt, UInt);
+typedef UInt(*Function_1)(UInt);
+#endif
 
 typedef Vns (*Z3_Function6)(Vns &, Vns &, Vns &, Vns &, Vns &, Vns &);
 typedef Vns (*Z3_Function5)(Vns &, Vns &, Vns &, Vns &, Vns &);
@@ -101,7 +110,6 @@ public:
 	inline Vns tIRExpr(IRExpr*);
 	inline void write_regs(int offset, void*, int length);
 	inline void read_regs(int offset, void*, int length);
-
 	inline Vns CCall(IRCallee *cee, IRExpr **exp_args, IRType ty);
 	void read_mem_dump(const char *);
 	inline Vns T_Unop(IROp, IRExpr*);

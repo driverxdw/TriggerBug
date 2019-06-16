@@ -18,22 +18,22 @@
 case Iop_##OPNAME##8:{																			\
 	vassert(a.bitn == 8); 																		\
 	vassert(b.bitn == 8);																		\
-	return Vns(m_ctx, (issigned##Char)(((issigned##Char)a)  OP  ((issigned##Char)b)),8);		\
+	return Vns(m_ctx, (issigned##Char)(((issigned##Char)a)  OP  ((issigned##Char)b)));		    \
 }																								\
 case Iop_##OPNAME##16:{																			\
 	vassert(a.bitn == 16); 																		\
 	vassert(b.bitn == 16);																		\
-	return Vns(m_ctx, (issigned##Short)(((issigned##Short)a)  OP  ((issigned##Short)b)),16);	\
+	return Vns(m_ctx, (issigned##Short)(((issigned##Short)a)  OP  ((issigned##Short)b)));	    \
 }																								\
 case Iop_##OPNAME##32:{																			\
 	vassert(a.bitn == 32); 																		\
 	vassert(b.bitn == 32);																		\
-	return Vns(m_ctx, (issigned##Int)(((issigned##Int)a)  OP  ((issigned##Int)b)),32);			\
+	return Vns(m_ctx, (issigned##Int)(((issigned##Int)a)  OP  ((issigned##Int)b)));			    \
 }																								\
 case Iop_##OPNAME##64:{																			\
 	vassert(a.bitn == 64); 																		\
 	vassert(b.bitn == 64);																		\
-	return Vns(m_ctx, (issigned##Long)(((issigned##Long)a)  OP  ((issigned##Long)b)),64);		\
+	return Vns(m_ctx, (issigned##Long)(((issigned##Long)a)  OP  ((issigned##Long)b)));		    \
 }
 
 #define caseIop_Relational_Low(OPNAME, OP, issigned) 											\
@@ -87,22 +87,22 @@ case Iop_##OPNAME##64:{																			\
 case Iop_##OPNAME##8:{																			\
 	vassert(a.bitn == 8); 																		\
 	vassert(b.bitn == 8);																		\
-	return Vns(m_ctx, (issigned##Char)(((issigned##Char)a)  OP  ((issigned##Char)b)),8);		\
+	return Vns(m_ctx, (issigned##Char)(((issigned##Char)a)  OP  ((issigned##Char)b)));		    \
 }																								\
 case Iop_##OPNAME##16:{																			\
 	vassert(a.bitn == 16); 																		\
 	vassert(b.bitn == 8);																		\
-	return Vns(m_ctx, (issigned##Short)(((issigned##Short)a)  OP  ((issigned##Char)b)),16);		\
+	return Vns(m_ctx, (issigned##Short)(((issigned##Short)a)  OP  ((issigned##Char)b)));		\
 }																								\
 case Iop_##OPNAME##32:{																			\
 	vassert(a.bitn == 32); 																		\
 	vassert(b.bitn == 8);																		\
-	return Vns(m_ctx, (issigned##Int)(((issigned##Int)a)  OP  ((issigned##Char)b)),32);			\
+	return Vns(m_ctx, (issigned##Int)(((issigned##Int)a)  OP  ((issigned##Char)b)));			\
 }																								\
 case Iop_##OPNAME##64:{																			\
 	vassert(a.bitn == 64); 																		\
 	vassert(b.bitn == 8);																		\
-	return Vns(m_ctx, (issigned##Long)(((issigned##Long)a)  OP  ((issigned##Char)b)),64);		\
+	return Vns(m_ctx, (issigned##Long)(((issigned##Long)a)  OP  ((issigned##Char)b)));		    \
 }																								\
 
 
@@ -203,6 +203,7 @@ inline Vns State::T_Binop(IROp op, IRExpr* arg1, IRExpr* arg2) {
 	Vns a = tIRExpr(arg1);
 	Vns b = tIRExpr(arg2);
 	if (a.symbolic() || b.symbolic()) goto dosymbol;
+    {
 	switch (op) {
 		caseIop_Arithmetic(Add, +, U);
 		caseIop_Arithmetic(Sub, -, U);
@@ -475,11 +476,37 @@ inline Vns State::T_Binop(IROp op, IRExpr* arg1, IRExpr* arg2) {
 	default:ppIROp(op); vpanic("???wtf??");
 	}
 	goto FAILD;
+    }
+    {
 dosymbol:
 	switch (op) {
 		Z3caseIop_Arithmetic(Add, Z3_mk_bvadd, U);
 		Z3caseIop_Arithmetic(Sub, Z3_mk_bvsub, U);
 		Z3caseIop_Arithmetic(Mul, Z3_mk_bvmul, U);
+    /*case Iop_Sub8: {
+        vassert(a.bitn == 8);
+        vassert(b.bitn == 8);
+        return Vns(m_ctx, Z3_mk_bvsub(m_ctx, a, b), 8);
+    }
+    case Iop_Sub16: {
+        vassert(a.bitn == 16);
+        vassert(b.bitn == 16);
+        std::cout << Z3_ast_to_string(m_ctx, a) << std::endl;
+        std::cout << Z3_ast_to_string(m_ctx, b) << std::endl;
+        return Vns(m_ctx, Z3_mk_bvsub(m_ctx, a, b), 16);
+    }
+    case Iop_Sub32: {
+        vassert(a.bitn == 32);
+        vassert(b.bitn == 32);
+        return Vns(m_ctx, Z3_mk_bvsub(m_ctx, a, b), 32);
+    }
+    case Iop_Sub64: {
+        vassert(a.bitn == 64);
+        vassert(b.bitn == 64);
+        return Vns(m_ctx, Z3_mk_bvsub(m_ctx, a, b), 64);
+    }*/
+
+
 	case Iop_DivU32:{															
 		vassert(a.bitn == 32);
 		vassert(b.bitn == 32);
@@ -606,7 +633,7 @@ dosymbol:
 
 	default:ppIROp(op); vpanic("???wtf??");
 	}
-
+    }
 FAILD:
 	ppIROp(op);
 	vpanic("tIRType");

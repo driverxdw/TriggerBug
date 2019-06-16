@@ -1,6 +1,7 @@
 ﻿#ifndef MEMORY_DEFS_H
 #define MEMORY_DEFS_H
 
+
 using namespace z3;
 
 extern UInt global_user;
@@ -489,20 +490,22 @@ public:
             count += 1;
         };
     }
-    inline void set_double_page(Addr64 address, Pap &addrlst) {
+    inline void set_double_page(ADDR address, Pap &addrlst) {
         addrlst.guest_addr = address;
         addrlst.Surplus = 0x1000 - (address & 0xfff);
         addrlst.t_page_addr = (UChar*)GETPAGE((ULong)address)->unit->m_bytes + (address & 0xfff);
     }
-    inline UChar* get_next_page(Addr64 address) {
+    inline UChar* get_next_page(ADDR address) {
         return (UChar*)GETPAGE((ULong)(address + 0x1000))->unit->m_bytes;
     }
 
-    inline PAGE* getMemPage(Addr64 address) { return GETPAGE(address); }
+    inline PAGE* getMemPage(ADDR address) {
+        return GETPAGE((ULong)address);
+    }
 
     // ty  IRType || n_bits
     template<IRType ty>
-    inline Vns Iex_Load(Addr64 address)
+    inline Vns Iex_Load(ADDR address)
     {
         PAGE *P = getMemPage(address);
         UShort offset = (UShort)address & 0xfff;
@@ -557,6 +560,7 @@ public:
             }
         linear_err1:
             {
+                vpanic("2333333");
                 PAGE *nP = getMemPage((Addr64)address + 0x1000);
 
                 UInt plength = 0x1000 - offset;
@@ -604,6 +608,7 @@ public:
 
         linear_err2:
             {
+                vpanic("2333333");
                 PAGE *nP = getMemPage((Addr64)address + 0x1000);
 
                 UInt plength = 0x1000 - offset;
@@ -640,7 +645,7 @@ public:
 
 
 
-    inline Vns Iex_Load(Addr64 address, IRType ty)
+    inline Vns Iex_Load(ADDR address, IRType ty)
     {
         switch (ty) {
         case 8:
@@ -690,8 +695,7 @@ public:
             reast = ift;
             it++;
         }
-        Z3_dec_ref(m_ctx, reast);
-        return Vns(m_ctx, reast);
+        return Vns(m_ctx, reast, no_inc {});
     }
 
     inline Vns Iex_Load(Z3_ast address, IRType ty) {
@@ -718,7 +722,7 @@ public:
     template<IRType ty>
     inline Vns Iex_Load(Vns const &address) {
         if (address.real()) {
-            return Iex_Load<ty>((Addr64)address);
+            return Iex_Load<ty>((ADDR)address);
         }
         else {
             return Iex_Load<ty>((Z3_ast)address);
@@ -729,7 +733,7 @@ public:
     inline Vns Iex_Load(Vns const &address, IRType ty)
     {
         if (address.real()) {
-            return Iex_Load((Addr64)address, ty);
+            return Iex_Load((ADDR)address, ty);
         }
         else {
             return Iex_Load((Z3_ast)address, ty);
@@ -740,7 +744,7 @@ public:
 
 
     template<typename DataTy>
-    inline void Ist_Store(Addr64 address, DataTy data) {
+    inline void Ist_Store(ADDR address, DataTy data) {
         PAGE *P = getMemPage(address);
         CheckSelf(P, address);
         UShort offset = address & 0xfff;
@@ -748,6 +752,7 @@ public:
             PAGE *nP = getMemPage((ULong)address + 0x1000);
             UInt plength = 0x1000 - offset;
             UInt npLength = sizeof(data) - plength;
+            vpanic("not support");
             /*linearPut<numreal>(P, offset, plength, data);
             linearPut<numreal>(nP, 0, npLength, data.Split(npLength, plength));*/
         }
@@ -757,7 +762,7 @@ public:
     }
 
     template<unsigned int bitn>
-    inline void Ist_Store(Addr64 address, Z3_ast data) {
+    inline void Ist_Store(ADDR address, Z3_ast data) {
         PAGE *P = getMemPage(address);
         CheckSelf(P, address);
         UShort offset = address & 0xfff;
@@ -765,6 +770,7 @@ public:
             PAGE *nP = getMemPage((ULong)address + 0x1000);
             UInt plength = 0x1000 - offset;
             UInt npLength = (bitn >> 3) - plength;
+            vpanic("not support");
             //linearPut<symbolic>(P, offset, plength, data);
             //linearPut<symbolic>(nP, 0, npLength, data.Split(npLength, plength));
         }
@@ -794,7 +800,7 @@ public:
         else {
             uint64_t Z3_RE;
             if (!Z3_get_numeral_uint64(m_ctx, saddrs[0], &Z3_RE)) vassert(0);
-            Ist_Store(Z3_RE, data);
+            Ist_Store((ADDR)Z3_RE, data);
         }
     }
 
@@ -820,12 +826,12 @@ public:
         else {
             uint64_t Z3_RE;
             if (!Z3_get_numeral_uint64(m_ctx, saddrs[0], &Z3_RE)) vassert(0);
-            Ist_Store<bitn>(Z3_RE, data);
+            Ist_Store<bitn>((ADDR)Z3_RE, data);
         }
     }
 
 
-    inline void Ist_Store(Addr64 address, Vns const &data) {
+    inline void Ist_Store(ADDR address, Vns const &data) {
         if (data.real()) {
             switch (data.bitn) {
             case 8:  Ist_Store(address, (UChar)data); break;
@@ -854,7 +860,7 @@ public:
     template<typename DataTy>
     inline void Ist_Store(Vns const &address, DataTy data) {
         if (address.real()) {
-            Ist_Store((Addr64)address, data);
+            Ist_Store((ADDR)address, data);
         }
         else {
             Ist_Store((Z3_ast)address, data);
@@ -888,7 +894,7 @@ public:
 
     inline void MEM::Ist_Store(Vns const &address, Vns const &data) {
         if (address.real()) {
-            Ist_Store((Addr64)address, data);
+            Ist_Store((ADDR)address, data);
         }
         else {
             Ist_Store((Z3_ast)address, data);
@@ -898,7 +904,7 @@ public:
     inline operator Z3_context() { return m_ctx; }
 
 private:
-    inline void CheckSelf(PAGE *&P, Addr64 address)
+    inline void CheckSelf(PAGE *&P, ADDR address)
     {
         if (user != P->user) {//WNC
             if (P->user == -1ull) {
@@ -924,15 +930,15 @@ private:
         }
     }
     template<>
-    inline void Ist_Store(Addr64 address, Vns data) = delete;
+    inline void Ist_Store(ADDR address, Vns data) = delete;
     template<>
-    inline void Ist_Store(Addr64 address, Vns &data) = delete;
+    inline void Ist_Store(ADDR address, Vns &data) = delete;
     template<>
-    inline void Ist_Store(Addr64 address, Vns const &data) = delete;
+    inline void Ist_Store(ADDR address, Vns const &data) = delete;
     template<>
-    inline void Ist_Store(Addr64 address, Z3_ast data) = delete;
+    inline void Ist_Store(ADDR address, Z3_ast data) = delete;
     template<>
-    inline void Ist_Store(Addr64 address, Z3_ast &data) = delete;
+    inline void Ist_Store(ADDR address, Z3_ast &data) = delete;
 
     template<>
     inline void Ist_Store(Z3_ast address, Vns data) = delete;

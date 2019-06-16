@@ -217,11 +217,15 @@ static inline Z3_ast Reg2Ast(Char nbytes, UChar* m_bytes, UChar *m_fastindex, Z3
             Z3_inc_ref(ctx, reast);
             nbytes -= fast;
             result = Z3_mk_concat(ctx, reast, m_ast[nbytes]);
+            Z3_inc_ref(ctx, result);
             Z3_dec_ref(ctx, reast);
+            Z3_dec_ref(ctx, reinterpret_cast<Z3_ast>(zsort));
         }
         else {
             if (nbytes < fast) {
-                return Z3_mk_extract(ctx, ((fast) << 3) - 1, (fast - nbytes) << 3, m_ast[nbytes - fast]);
+                result = Z3_mk_extract(ctx, ((fast) << 3) - 1, (fast - nbytes) << 3, m_ast[nbytes - fast]);
+                Z3_inc_ref(ctx, result);
+                return result;
             }
             if (m_fastindex[nbytes] >> 1) {
                 result = Z3_mk_extract(ctx, (fast << 3) - 1, 0, m_ast[nbytes - fast]);
@@ -229,6 +233,7 @@ static inline Z3_ast Reg2Ast(Char nbytes, UChar* m_bytes, UChar *m_fastindex, Z3
             }
             else {
                 if (nbytes == fast) {
+                    Z3_inc_ref(ctx, m_ast[nbytes - fast]);
                     return m_ast[nbytes - fast];
                 }
                 else {
@@ -236,14 +241,15 @@ static inline Z3_ast Reg2Ast(Char nbytes, UChar* m_bytes, UChar *m_fastindex, Z3
                     nbytes -= fast;
                 }
             }
+            Z3_inc_ref(ctx, result);
         }
-        Z3_inc_ref(ctx, result);
     }
     else {
         auto zsort = Z3_mk_bv_sort(ctx, nbytes << 3);
         Z3_inc_ref(ctx, reinterpret_cast<Z3_ast>(zsort));
         reast = Z3_mk_unsigned_int64(ctx, GET8(m_bytes), zsort);
         Z3_inc_ref(ctx, reast);
+        Z3_dec_ref(ctx, reinterpret_cast<Z3_ast>(zsort));
         return reast;
     }
     while (nbytes > 0) {
@@ -258,6 +264,7 @@ static inline Z3_ast Reg2Ast(Char nbytes, UChar* m_bytes, UChar *m_fastindex, Z3
                 Z3_inc_ref(ctx, reinterpret_cast<Z3_ast>(zsort));
                 reast = Z3_mk_unsigned_int64(ctx, GET8(m_bytes + nbytes), zsort);
                 Z3_inc_ref(ctx, reast);
+                Z3_dec_ref(ctx, reinterpret_cast<Z3_ast>(zsort));
                 Z3_ast newresult = Z3_mk_concat(ctx, result, reast);
                 Z3_inc_ref(ctx, newresult);
                 Z3_dec_ref(ctx, result);
@@ -266,6 +273,7 @@ static inline Z3_ast Reg2Ast(Char nbytes, UChar* m_bytes, UChar *m_fastindex, Z3
                     Z3_ast ext = Z3_mk_extract(ctx, ((fast) << 3) - 1, (fast - nbytes) << 3, m_ast[nbytes - fast]);
                     Z3_inc_ref(ctx, ext);
                     Z3_ast result = Z3_mk_concat(ctx, newresult, ext);
+                    Z3_inc_ref(ctx, result);
                     Z3_dec_ref(ctx, newresult);
                     Z3_dec_ref(ctx, ext);
                     return result;
@@ -282,6 +290,7 @@ static inline Z3_ast Reg2Ast(Char nbytes, UChar* m_bytes, UChar *m_fastindex, Z3
                     Z3_ast ext = Z3_mk_extract(ctx, ((fast) << 3) - 1, (fast - nbytes) << 3, m_ast[nbytes - fast]);
                     Z3_inc_ref(ctx, ext);
                     Z3_ast newresult = Z3_mk_concat(ctx, result, ext);
+                    Z3_inc_ref(ctx, newresult);
                     Z3_dec_ref(ctx, ext);
                     Z3_dec_ref(ctx, result);
                     return newresult;
@@ -301,39 +310,44 @@ static inline Z3_ast Reg2Ast(Char nbytes, UChar* m_bytes, UChar *m_fastindex, Z3
             Z3_inc_ref(ctx, reinterpret_cast<Z3_ast>(zsort));
             reast = Z3_mk_unsigned_int64(ctx, GET8(m_bytes), zsort);
             Z3_inc_ref(ctx, reast);
+            Z3_dec_ref(ctx, reinterpret_cast<Z3_ast>(zsort));
             Z3_ast newresult = Z3_mk_concat(ctx, result, reast);
+            Z3_inc_ref(ctx, newresult);
             Z3_dec_ref(ctx, reast);
             Z3_dec_ref(ctx, result);
             return newresult;
         }
     }
     return result;
-
 }
 
 static inline Z3_ast Reg2Ast(Char nbytes, UChar* m_bytes, UChar *m_fastindex, Z3_ast* m_ast, Z3_context ctx, Z3_context toctx) {
-    return  Z3_translate(ctx, Reg2Ast(nbytes, m_bytes, m_fastindex, m_ast, ctx), toctx);
+    auto res = Reg2Ast(nbytes, m_bytes, m_fastindex, m_ast, ctx);
+    auto tast = Z3_translate(ctx, res, toctx);
+    Z3_inc_ref(ctx, tast);
+    Z3_dec_ref(ctx, res);
+    return tast;
 }
 
 
 #define GET_from_nbytes(nbytes, ... )    \
-(nbytes==1)? \
+((nbytes)==1)? \
     GET1(__VA_ARGS__): \
-    (nbytes==2)? \
+    ((nbytes)==2)? \
         GET2(__VA_ARGS__):\
-        (nbytes==4)? \
+        ((nbytes)==4)? \
             GET4(__VA_ARGS__):\
-            (nbytes==8)? \
+            ((nbytes)==8)? \
                 GET8(__VA_ARGS__):\
                 GET1(23333)//imPOSSIBLE
 #define SET_from_nbytes(nbytes, arg1, arg2 )    \
-(nbytes==1)? \
+((nbytes)==1)? \
     SET1( arg1, arg2): \
-    (nbytes==2)? \
+    ((nbytes)==2)? \
         SET2( arg1, arg2):\
-        (nbytes==4)? \
+        ((nbytes)==4)? \
             SET4( arg1, arg2):\
-            (nbytes==8)? \
+            ((nbytes)==8)? \
                 SET8( arg1, arg2):\
                 SET1(23333,0)//imPOSSIBLE
 
@@ -379,7 +393,7 @@ public:
     case nbit:                                                                                              \
     case Ity_##vectype##nbit:                                                                               \
         if (symbolic&&compare) {                                                                            \
-            return Vns(m_ctx, Reg2Ast(nbytes,m_bytes+offset,m_fastindex+offset, m_ast+offset, m_ctx),nbit); \
+            return Vns(m_ctx, Reg2Ast(nbytes,m_bytes+offset,m_fastindex+offset, m_ast+offset, m_ctx), nbit,  no_inc {}); \
         }else{                                                                                              \
             return Vns(m_ctx, GET##nbytes##(m_bytes + offset));                                             \
         }
@@ -395,14 +409,12 @@ public:
         case Ity_V128: {
             if (symbolic && ((GET8(m_fastindex + offset)) || (GET8(m_fastindex + offset + 8)))) {
                 auto ast_vector = Reg2Ast(8, m_bytes + offset, m_fastindex + offset, m_ast + offset, m_ctx);
-                Z3_inc_ref(m_ctx, ast_vector);
-
                 auto n_ast = Reg2Ast(8, m_bytes + offset + 8, m_fastindex + offset + 8, m_ast + offset + 8, m_ctx);
-                Z3_inc_ref(m_ctx, n_ast);
                 auto new_vector = Z3_mk_concat(m_ctx, n_ast, ast_vector);
-                Z3_dec_ref(m_ctx, n_ast);
+                Z3_inc_ref(m_ctx, new_vector);
                 Z3_dec_ref(m_ctx, ast_vector);
-                return Vns(m_ctx, new_vector, 128);
+                Z3_dec_ref(m_ctx, n_ast);
+                return Vns(m_ctx, new_vector, 128,  no_inc {});
             }
             else {
                 return Vns(m_ctx, GET16(m_bytes + offset));
@@ -414,18 +426,15 @@ public:
                 auto fast_p = m_fastindex + offset;
                 auto ast_p = m_ast + offset;
                 auto ast_vector = Reg2Ast(8, bytes_p, fast_p, ast_p, m_ctx);
-                Z3_inc_ref(m_ctx, ast_vector);
                 for (int count = 8; count < 32; count += 8) {
                     auto n_ast = Reg2Ast(8, bytes_p + count, fast_p + count, ast_p + count, m_ctx);
-                    Z3_inc_ref(m_ctx, n_ast);
                     auto new_vector = Z3_mk_concat(m_ctx, n_ast, ast_vector);
                     Z3_inc_ref(m_ctx, new_vector);
                     Z3_dec_ref(m_ctx, ast_vector);
                     Z3_dec_ref(m_ctx, n_ast);
                     ast_vector = new_vector;
                 }
-                Z3_dec_ref(m_ctx, ast_vector);
-                return Vns(m_ctx, ast_vector, 256);
+                return Vns(m_ctx, ast_vector, 256,  no_inc {});
             }
             else {
                 return Vns(m_ctx, GET32(m_bytes + offset));
@@ -464,9 +473,9 @@ public:
     case nbit:                                                                                                          \
     case Ity_##vectype##nbit:                                                                                           \
         if (symbolic&&compare) {                                                                                        \
-            return Vns(m_ctx, Reg2Ast(nbytes, m_bytes + offset, m_fastindex + offset, m_ast + offset, m_ctx, ctx),nbit);\
+            return Vns(ctx, Reg2Ast(nbytes, m_bytes + offset, m_fastindex + offset, m_ast + offset, m_ctx, ctx), nbit,  no_inc {});\
         }else{                                                                                                          \
-            return Vns(m_ctx, GET##nbytes##(m_bytes + offset));                                                         \
+            return Vns(ctx, GET##nbytes##(m_bytes + offset));                                                         \
         }                                                                            
 
             lazydef(I, 8, 1, GET1(m_fastindex + offset));
@@ -480,17 +489,15 @@ public:
         case Ity_V128: {
             if (symbolic && ((GET8(m_fastindex + offset)) || (GET8(m_fastindex + offset + 8)))) {
                 auto ast_vector = Reg2Ast(8, m_bytes + offset, m_fastindex + offset, m_ast + offset, m_ctx, ctx);
-                Z3_inc_ref(m_ctx, ast_vector);
-
                 auto n_ast = Reg2Ast(8, m_bytes + offset + 8, m_fastindex + offset + 8, m_ast + offset + 8, m_ctx, ctx);
-                Z3_inc_ref(m_ctx, n_ast);
                 auto new_vector = Z3_mk_concat(m_ctx, n_ast, ast_vector);
-                Z3_dec_ref(m_ctx, n_ast);
-                Z3_dec_ref(m_ctx, ast_vector);
-                return Vns(m_ctx, new_vector, 128);
+                Z3_inc_ref(ctx, new_vector);
+                Z3_dec_ref(ctx, n_ast);
+                Z3_dec_ref(ctx, ast_vector);
+                return Vns(ctx, new_vector, 128,  no_inc {});
             }
             else {
-                return     Vns(m_ctx, GET16(m_bytes + offset));
+                return Vns(ctx, GET16(m_bytes + offset));
             }
         }
         case Ity_V256: {
@@ -499,21 +506,18 @@ public:
                 auto fast_p = m_fastindex + offset;
                 auto ast_p = m_ast + offset;
                 auto ast_vector = Reg2Ast(8, bytes_p, fast_p, ast_p, m_ctx, ctx);
-                Z3_inc_ref(m_ctx, ast_vector);
                 for (int count = 8; count < 32; count += 8) {
                     auto n_ast = Reg2Ast(8, bytes_p + count, fast_p + count, ast_p + count, m_ctx, ctx);
-                    Z3_inc_ref(m_ctx, n_ast);
-                    auto new_vector = Z3_mk_concat(m_ctx, n_ast, ast_vector);
-                    Z3_inc_ref(m_ctx, new_vector);
-                    Z3_dec_ref(m_ctx, ast_vector);
-                    Z3_dec_ref(m_ctx, n_ast);
+                    auto new_vector = Z3_mk_concat(ctx, n_ast, ast_vector);
+                    Z3_inc_ref(ctx, new_vector);
+                    Z3_dec_ref(ctx, ast_vector);
+                    Z3_dec_ref(ctx, n_ast);
                     ast_vector = new_vector;
                 }
-                Z3_dec_ref(m_ctx, ast_vector);
-                return Vns(m_ctx, ast_vector, 256);
+                return Vns(ctx, ast_vector, 256, no_inc {});
             }
             else {
-                return Vns(m_ctx, GET32(m_bytes + offset));
+                return Vns(ctx, GET32(m_bytes + offset));
             }
         }
         default: vex_printf("ty = 0x%x\n", (UInt)ty); vpanic("tIRType");

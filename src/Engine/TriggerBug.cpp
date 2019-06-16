@@ -10,10 +10,12 @@ Revision History:
 --*/
 #define HOSTARCH VexArchAMD64
 
+//#define GUEST_IS_64 
+
 //#undef _DEBUG
 #define DLL_EXPORTS
 //#define INIFILENAME "C:\\Users\\bibi\\Desktop\\TriggerBug\\PythonFrontEnd\\TriggerBug-asong.xml"
-#define INIFILENAME "C:\\Users\\bibi\\Desktop\\eee\\TriggerBug-default.xml"
+#define INIFILENAME "C:\\Users\\bibi\\Desktop\\eee\\TriggerBug-default32.xml"
 
 
 #include "engine.hpp"
@@ -30,6 +32,7 @@ Revision History:
 
 unsigned int    global_user;
 std::mutex      global_user_mutex;
+std::vector<Addr64> avoid_branch_oep;
 
 
 unsigned char * _n_page_mem(void *pap) {
@@ -352,27 +355,13 @@ State_Tag avoid_ret(State *s) {
 }
 
 State_Tag success_ret(State *s) {
-    std::cout << *s << std::endl;
-
-    if (s->solv.check() == sat) {
-        vex_printf("sat");
-        auto m = s->solv.get_model();
-        std::cout << m << std::endl;
-    }
-    else {
-        vex_printf("unsat??????????\n\n");
-    }
-    return Death;
-}
-
-State_Tag inceax(State *s) {
-    Regs::AMD64 reg(*s);
-    std::cout << Z3_ast_to_string(*s, s->regs.Iex_Get(24, Ity_I32)) << std::endl;
-
-
     s->solv.push();
-    auto cx = s->regs.Iex_Get(24, Ity_I16);
-    s->add_assert(cx < 128, 1);
+    auto esp = s->regs.Iex_Get<Ity_I32>(24);
+    for (int i = 0; i <= 5; i++) {
+        auto al = s->mem.Iex_Load<Ity_I8>(esp + 92 + i);
+        auto bl = s->mem.Iex_Load<Ity_I8>(esp + 8 + i);
+        s->add_assert_eq(al, bl);
+    }
     if (s->solv.check() == sat) {
         vex_printf("sat");
         auto m = s->solv.get_model();
@@ -384,47 +373,48 @@ State_Tag inceax(State *s) {
 
 
     s->solv.pop();
-    
+
     return Death;
 }
+
 
 //#include "Engine/Z3_Target_Call/Guest_Helper.hpp"
 
 
-#define sdcsds(c) c.extract<1,0>()
 
 int main() {
-
-
     State state(INIFILENAME, NULL, True);
 
-    Vns dfd(state.m_ctx,0b101ull);
-
-    auto dfdf = dfd == (Char)0;
+    Vns FLAG2 = state.m_ctx.bv_const("buff", 32);
+    Vns dfd1(state.m_ctx,0,32);
+    Vns dfd2(state.m_ctx, FLAG2, 32);
+    Vns gy(state.m_ctx,Z3_mk_bvsub(dfd1, dfd1, dfd2), 32);
 
 
     //State state(INIFILENAME, 0x10912EA, True);
 
-    Regs::AMD64 reg(state);
-    
+    //Regs::AMD64 reg(state);
+    auto eax = state.regs.Iex_Get<Ity_I32>(8);
+
     for (int i = 0; i < 16; i++) {
         char buff[20];
         sprintf_s(buff, sizeof(buff), "flag%d", i);
         Vns FLAG = state.m_ctx.bv_const(buff, 8);
-        state.mem.Ist_Store(reg.guest_RBP - 0x20 + i, FLAG);
-        //state.add_assert(FLAG < 127, 1);
-        state.add_assert(FLAG > 1, 1);
+        state.mem.Ist_Store(eax+i, FLAG);
+       /* auto ao1 = FLAG > 8 && FLAG < 14;
+        auto ao2 = FLAG > 31 && FLAG < 127;
+        state.add_assert(FLAG<128, True);*/
+        auto ao1 = FLAG > 8 && FLAG < 14;
+        auto ao2 = FLAG > 31 && FLAG < 127;
+        state.add_assert(ao1 || ao2, True);
     }
 
-    TB_hook_add(&state, 0x55E0F13721A4, success_ret);
-    TB_hook_add(&state, 0x55E0F13721AB, avoid_ret);
-    TB_hook_add(&state, 0x55E0F137211D, avoid_ret);
+    TB_hook_add(&state, 0xCE13E0, success_ret);
+    TB_hook_add(&state, 0x0CE13D2, avoid_ret);
+    TB_hook_add(&state, 0x0CE13FE, avoid_ret);
     
-    TB_hook_add(&state, 0x055E0F1372188, inceax);
+    //TB_hook_add(&state, 0x0CE13EA, inceax);
     
-    auto P = state.mem.getMemPage(0x55E0F137211B);
-    
-    memset(P->unit->m_bytes + 0x11B, 0x90, 0x24 - 0x1b);
 
 
     //helper::UChar_ fgb(state.mem, 0x0400796);
@@ -462,7 +452,7 @@ int main() {
     *dfj = 9;*/
 
     auto sd = &state;
-    state.regs.Ist_Put(176, 00ull);
+    //state.regs.Ist_Put(176, 00ull);
 
 
     //s.regs.Ist_Put(32, f);

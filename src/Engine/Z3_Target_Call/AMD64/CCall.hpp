@@ -187,7 +187,7 @@ extern "C" {
     /*ok*/MASKaf(  return bit2ret(CC_NDEP, AMD64G_CC_SHIFT_A);                                              )\
     /*ok*/MASKzf(  return bit2ret(CC_NDEP, AMD64G_CC_SHIFT_Z);                                              )\
     /*ok*/MASKsf(  return bit2ret(CC_NDEP, AMD64G_CC_SHIFT_S);                                              )\
-    /*ok*/MASKof(  return bit2ret((lshift_o(CC_DEP1, 11 - (DATA_BITS - 1)) ^ lshift_o(CC_DEP1, 11)), AMD64G_CC_SHIFT_O);)\
+    /*ok*/MASKof(  return bit2ret(CC_DEP1, DATA_BITS - 1).boolXor(bit2ret(CC_DEP1, 0));                     )\
    }                                                                                                        \
 }
 
@@ -204,7 +204,7 @@ extern "C" {
     /*ok*/MASKaf(  return bit2ret(CC_NDEP, AMD64G_CC_SHIFT_A);                                              )\
     /*ok*/MASKzf(  return bit2ret(CC_NDEP, AMD64G_CC_SHIFT_Z);                                              )\
     /*ok*/MASKsf(  return bit2ret(CC_NDEP, AMD64G_CC_SHIFT_S);                                              )\
-    /*ok*/MASKof(  return bit2ret((lshift_o(CC_DEP1,  11-(DATA_BITS-1))  ^ lshift_o(CC_DEP1, 11-(DATA_BITS-1)+1)), AMD64G_CC_SHIFT_O); )\
+    /*ok*/MASKof(  return bit2ret(CC_DEP1, DATA_BITS - 1).boolXor(bit2ret(CC_DEP1, DATA_BITS - 2));         )\
    }                                                                                                        \
 }
 

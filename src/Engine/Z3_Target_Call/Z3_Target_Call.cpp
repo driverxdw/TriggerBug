@@ -11,23 +11,17 @@ auto parity_table = [](Vns &d) {
     return all.extract(0, 0) == 0;
 };
 
-static inline Z3_ast bool2bv(Z3_context ctx, Z3_ast ast) {
+static inline Z3_ast bv2bool(Z3_context ctx, Z3_ast ast) {
     Z3_inc_ref(ctx, ast);
-    Z3_sort sort = Z3_mk_bv_sort(ctx, 1);
-    Z3_inc_ref(ctx, (Z3_ast)sort);
-    Z3_ast zero = Z3_mk_int(ctx, 0, sort);
-    Z3_inc_ref(ctx, zero);
-    Z3_ast one = Z3_mk_int(ctx, 1, sort);
+    Z3_ast one = Z3_mk_int(ctx, 1, Z3_get_sort(ctx, ast));
     Z3_inc_ref(ctx, one);
-    Z3_ast result = Z3_mk_ite(ctx, ast, one, zero);
-    Z3_dec_ref(ctx, (Z3_ast)sort);
+    Z3_ast result = Z3_mk_eq(ctx, ast, one);
     Z3_dec_ref(ctx, one);
-    Z3_dec_ref(ctx, zero);
     Z3_dec_ref(ctx, ast);
     return result;
 }
 
-#define bit2ret(v, idx)  ((v).real()) ? Vns((Z3_context)(v), ((v)>>(idx)), 1) : Vns((Z3_context)(v), bool2bv((Z3_context)(v), Vns((Z3_context)(v),Z3_mk_extract(v,idx,idx,v),1)),1)
+#define bit2ret(v, idx)  ((v).real()) ? Vns((Z3_context)(v), ((v)>>(idx)), 1) : Vns((Z3_context)(v), bv2bool((Z3_context)(v), Vns((Z3_context)(v),Z3_mk_extract(v,idx,idx,v),1)),1)
 
 
 #define NOTEMACRO(...)  
@@ -38,13 +32,6 @@ static inline Z3_ast bool2bv(Z3_context ctx, Z3_ast ast) {
 #define UInt_extract(value) ((value).extract(31,0))
 #define ULong_extract(value) (value)
 
-static inline Vns lshift_o(Vns &x, Int n)
-{
-    if (n >= 0)
-        return x << n;
-    else
-        return ashr(x, -n);
-}
 
 #include "./AMD64/CCall.hpp"
 #include "./X86/CCall.hpp"

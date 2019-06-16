@@ -15,6 +15,8 @@ static inline void intString2bytes(unsigned char *bytesbuff, size_t n, const cha
     _PyLong_AsByteArray((PyLongObject*)value, bytesbuff, n, 1, 0);
 }
 
+struct no_inc {};
+
 class Vns {
 public:
     __declspec(align(32)) union _pack {
@@ -90,10 +92,23 @@ public:
     {
         Z3_inc_ref(ctx, ast);
         vassert(ast&&sort_kind() == Z3_BV_SORT);
+        vassert(Z3_OK == Z3_get_error_code(ctx));
+        bitn = Z3_get_bv_sort_size(ctx, Z3_get_sort(ctx, m_ast));
+    }
+
+    inline Vns(Z3_context ctx, Z3_ast ast, no_inc) :
+        m_ctx(ctx),
+        m_ast(ast),
+        m_kind(SYMB)
+    {
+        vassert(ast&&sort_kind() == Z3_BV_SORT);
+        vassert(Z3_OK == Z3_get_error_code(ctx));
         bitn = Z3_get_bv_sort_size(ctx, Z3_get_sort(ctx, m_ast));
     }
 
     inline Vns(context const &ctx, Z3_ast ast) :Vns((Z3_context) ctx,  ast) {};
+
+    inline Vns(context const &ctx, Z3_ast ast, no_inc no) :Vns((Z3_context)ctx, ast, no) {};
 
     inline Vns(Z3_context ctx, Z3_ast ast, UShort n) ://main
         m_ctx(ctx),
@@ -101,11 +116,35 @@ public:
         m_kind(SYMB),
         bitn(n)
     {
+        if (Z3_OK != Z3_get_error_code(ctx)) {
+            vpanic(Z3_get_error_msg(ctx, Z3_get_error_code(ctx)));
+        }
         vassert(ast);
         Z3_inc_ref(ctx, ast);
+        if (sort_kind() == Z3_BV_SORT) {
+            vassert(Z3_get_bv_sort_size(ctx, Z3_get_sort(ctx, m_ast)) == n);
+        }
     }
 
+    inline Vns(Z3_context ctx, Z3_ast ast, UShort n, no_inc) ://main
+        m_ctx(ctx),
+        m_ast(ast),
+        m_kind(SYMB),
+        bitn(n)
+    {
+        if (Z3_OK != Z3_get_error_code(ctx)) {
+            vpanic(Z3_get_error_msg(ctx, Z3_get_error_code(ctx)));
+        }
+        vassert(ast);
+        if (sort_kind() == Z3_BV_SORT) {
+            vassert(Z3_get_bv_sort_size(ctx, Z3_get_sort(ctx, m_ast)) == n);
+        }
+    }
+    
+
     inline Vns(context const &ctx, Z3_ast ast, UShort n) : Vns((Z3_context)ctx,  ast,  n) {};
+
+    inline Vns(context const &ctx, Z3_ast ast, UShort n, no_inc  no) : Vns((Z3_context)ctx, ast, n, no) {};
 
     inline Vns(expr const &exp, UShort n) : Vns(exp.ctx(), exp, n) {};
 
@@ -139,21 +178,24 @@ public:
     template<typename T>
     inline void operator = (const T &a)
     {
-        ~Vns();
+        Vns::~Vns();
         *(T*)&this->pack = a;
         bitn = sizeof(a) << 3;
         m_kind = REAL;
     }
 
     inline Vns(const Vns &a) :
-        m_ctx(a)
+        m_ctx(a.m_ctx)
     {
-        if (a.m_kind == SYMB) {
-            m_ast = a.m_ast;
-            Z3_inc_ref(m_ctx, m_ast);
+        if (a.m_kind == REAL) {
+            this->pack = a.pack;
         }
         else {
-            this->pack = a.pack;
+            m_ast = a.m_ast;
+            Z3_inc_ref(m_ctx, m_ast);
+            if (a.m_kind == REAL_BCKAST) {
+                this->pack = a.pack;
+            }
         }
         bitn = a.bitn;
         m_kind = a.m_kind;
@@ -162,13 +204,16 @@ public:
     inline void operator=(const Vns & a)
     {
         Vns::~Vns();
-        m_ctx = a;
-        if (a.m_kind == SYMB) {
-            m_ast = a.m_ast;
-            Z3_inc_ref(m_ctx, m_ast);
+        m_ctx = a.m_ctx;
+        if (a.m_kind == REAL) {
+            this->pack = a.pack;
         }
         else {
-            this->pack = a.pack;
+            m_ast = a.m_ast;
+            Z3_inc_ref(m_ctx, m_ast);
+            if (a.m_kind == REAL_BCKAST) {
+                this->pack = a.pack;
+            }
         }
         bitn = a.bitn;
         m_kind = a.m_kind;
@@ -230,17 +275,18 @@ public:
 
     inline operator Z3_context() const { return m_ctx; }
 
-    inline operator Z3_ast() const {
+    operator Z3_ast() const {
         if (m_kind == REAL) {
             Z3_ast r_ast;
             Z3_sort zsort = Z3_mk_bv_sort(m_ctx, bitn);
             Z3_inc_ref(m_ctx, reinterpret_cast<Z3_ast>(zsort));
             r_ast = Z3_mk_unsigned_int64(m_ctx, *this, zsort);
             Z3_inc_ref(m_ctx, r_ast);
-            Z3_dec_ref(m_ctx, reinterpret_cast<Z3_ast>(zsort));
+            //Z3_dec_ref(m_ctx, reinterpret_cast<Z3_ast>(zsort));
             if (bitn > 64) {
-                for (int con = 1; con < (bitn >> 6); con++) {
-                    zsort = Z3_mk_bv_sort(m_ctx, 64);
+                for (int con = 1; con <= ((bitn-1) >> 6); con++) {
+                    auto n = (bitn - (con << 6));
+                    zsort = Z3_mk_bv_sort(m_ctx, (n < 64) ? n : 64);
                     Z3_inc_ref(m_ctx, reinterpret_cast<Z3_ast>(zsort));
                     auto new_ast = Z3_mk_unsigned_int64(m_ctx, this->pack._i64[con], zsort);
                     Z3_inc_ref(m_ctx, new_ast);
@@ -253,8 +299,8 @@ public:
                 }
             }
             //ÈÆ¹ýconst
-            *(Z3_ast*)(void *)(&this->m_ast) = r_ast;
-            *(V_Kind*)(void *)(&this->m_kind) = REAL_BCKAST;
+            *(Z3_ast*)(void *)(&(this->m_ast)) = r_ast;
+            *(V_Kind*)(void *)(&(this->m_kind)) = REAL_BCKAST;
         };
         return m_ast;
     }
@@ -293,9 +339,9 @@ public:
         return (ctx == m_ctx) ? *this : Z3_translate(m_ctx, *this, ctx);
     }
 
-    inline int real() const { return m_kind != SYMB; }
+    inline bool real() const { return m_kind != SYMB; }
 
-    inline int symbolic() const { return  m_kind == SYMB; }
+    inline bool symbolic() const { return  m_kind == SYMB; }
 
     inline Z3_sort_kind sort_kind() const { return Z3_get_sort_kind(m_ctx, Z3_get_sort(m_ctx, *this)); }
 
@@ -306,19 +352,22 @@ public:
         if (m_kind != SYMB)
             return *this;
         Z3_ast simp = Z3_simplify(m_ctx, m_ast);
+        Z3_inc_ref(m_ctx, simp);
         if (Z3_get_ast_kind(m_ctx, simp) == Z3_NUMERAL_AST) {
             if (bitn <= 64) {
                 uint64_t TMP;
                 Z3_get_numeral_uint64(m_ctx, simp, &TMP);
+                Z3_dec_ref(m_ctx, simp);
                 return Vns(m_ctx, TMP, bitn);
             }
             else {
                 __m256i buff;
                 intString2bytes((unsigned char*)&buff, 32, (char*)Z3_get_numeral_string(m_ctx, simp));
+                Z3_dec_ref(m_ctx, simp);
                 return Vns(m_ctx, buff, bitn);
             }
         }
-        return Vns(m_ctx, simp, bitn);
+        return Vns(m_ctx, simp, bitn, no_inc{});
     }
 
     inline Vns bv2fpa(sort &s) {

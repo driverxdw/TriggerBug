@@ -20,12 +20,12 @@ extern "C" {
 
 #define ACTIONS_COPY(MASKcf,MASKpf,MASKaf,MASKzf,MASKsf,MASKof) \
 {                                                               \
-   MASKcf(return bit2ret(CC_DEP1, AMD64G_CC_SHIFT_C);           )\
-   MASKpf(return bit2ret(CC_DEP1, AMD64G_CC_SHIFT_P);           )\
-   MASKaf(return bit2ret(CC_DEP1, AMD64G_CC_SHIFT_A);           )\
-   MASKzf(return bit2ret(CC_DEP1, AMD64G_CC_SHIFT_Z);           )\
-   MASKsf(return bit2ret(CC_DEP1, AMD64G_CC_SHIFT_S);           )\
-   MASKof(return bit2ret(CC_DEP1, AMD64G_CC_SHIFT_O);           )\
+   MASKcf(return bit2ret(CC_DEP1, X86G_CC_SHIFT_C);           )\
+   MASKpf(return bit2ret(CC_DEP1, X86G_CC_SHIFT_P);           )\
+   MASKaf(return bit2ret(CC_DEP1, X86G_CC_SHIFT_A);           )\
+   MASKzf(return bit2ret(CC_DEP1, X86G_CC_SHIFT_Z);           )\
+   MASKsf(return bit2ret(CC_DEP1, X86G_CC_SHIFT_S);           )\
+   MASKof(return bit2ret(CC_DEP1, X86G_CC_SHIFT_O);           )\
 }
 
 
@@ -37,7 +37,7 @@ extern "C" {
    {                                                                                                                                \
      /*ok*/MASKcf(return DATA_UTYPE((CC_DEP1 + CC_DEP2)) < DATA_UTYPE(CC_DEP1);                                                     )\
      /*ok*/MASKpf(return parity_table((CC_DEP1 + CC_DEP2));                                                                         )\
-     /*ok*/MASKaf(return bit2ret((CC_DEP1 + CC_DEP2) ^ CC_DEP1 ^ CC_DEP2, AMD64G_CC_SHIFT_A);                                       )\
+     /*ok*/MASKaf(return bit2ret((CC_DEP1 + CC_DEP2) ^ CC_DEP1 ^ CC_DEP2, X86G_CC_SHIFT_A);                                       )\
      /*ok*/MASKzf(return (DATA_UTYPE((CC_DEP1 + CC_DEP2)) == 0) ;                                                                )\
      /*ok*/MASKsf(return bit2ret((CC_DEP1 + CC_DEP2), DATA_BITS - 1) ;                                                              )\
      /*ok*/MASKof(return bit2ret((CC_DEP1 ^ CC_DEP2 ^ -1) & (CC_DEP1 ^ (CC_DEP1 + CC_DEP2)),  DATA_BITS - 1) ;                   )\
@@ -52,7 +52,7 @@ extern "C" {
    {                                                                                                                                \
      /*ok*/MASKcf(return DATA_UTYPE(CC_DEP1) < DATA_UTYPE(CC_DEP2);                                                                 )\
      /*ok*/MASKpf(return parity_table((CC_DEP1 - CC_DEP2));                                                                         )\
-     /*ok*/MASKaf(return bit2ret((CC_DEP1 - CC_DEP2) ^ CC_DEP1 ^ CC_DEP2, AMD64G_CC_SHIFT_A);                                       )\
+     /*ok*/MASKaf(return bit2ret((CC_DEP1 - CC_DEP2) ^ CC_DEP1 ^ CC_DEP2, X86G_CC_SHIFT_A);                                       )\
      /*ok*/MASKzf(return (DATA_UTYPE((CC_DEP1 - CC_DEP2)) == 0u) ;                                                                )\
      /*ok*/MASKsf(return bit2ret((CC_DEP1 - CC_DEP2), DATA_BITS - 1);                                                               )\
      /*ok*/MASKof(return bit2ret((CC_DEP1 ^ CC_DEP2) & (CC_DEP1 ^ (CC_DEP1 - CC_DEP2)), DATA_BITS - 1) ;                            )\
@@ -65,10 +65,10 @@ extern "C" {
 {                                                                                                                                   \
    PREAMBLE(DATA_BITS);                                                                                                             \
    {                                                                                                                                \
-     auto oldC = CC_NDEP & AMD64G_CC_MASK_C;                                                                                        \
+     auto oldC = CC_NDEP & X86G_CC_MASK_C;                                                                                        \
      /*ok*/MASKcf(return ite(oldC!=0,DATA_UTYPE(((CC_DEP1 + (CC_DEP2 ^ oldC)) + oldC)) <= DATA_UTYPE(CC_DEP1),DATA_UTYPE(((CC_DEP1 + (CC_DEP2 ^ oldC)) + oldC)) < DATA_UTYPE(CC_DEP1))  ;)\
      /*ok*/MASKpf(return parity_table(((CC_DEP1 + (CC_DEP2 ^ oldC)) + oldC));                                                       )\
-     /*ok*/MASKaf(return bit2ret((((CC_DEP1 + (CC_DEP2 ^ oldC)) + oldC) ^ CC_DEP1 ^ (CC_DEP2 ^ oldC)), AMD64G_CC_SHIFT_A);          )\
+     /*ok*/MASKaf(return bit2ret((((CC_DEP1 + (CC_DEP2 ^ oldC)) + oldC) ^ CC_DEP1 ^ (CC_DEP2 ^ oldC)), X86G_CC_SHIFT_A);          )\
      /*ok*/MASKzf(return (DATA_UTYPE(((CC_DEP1 + (CC_DEP2 ^ oldC)) + oldC)) == 0) ;                                              )\
      /*ok*/MASKsf(return bit2ret(((CC_DEP1 + (CC_DEP2 ^ oldC)) + oldC),  DATA_BITS - 1);                                            )\
      /*ok*/MASKof(return bit2ret((CC_DEP1 ^ (CC_DEP2 ^ oldC) ^ -1) & (CC_DEP1 ^ ((CC_DEP1 + (CC_DEP2 ^ oldC)) + oldC)), DATA_BITS - 1) ;                                                                             )\
@@ -81,10 +81,10 @@ extern "C" {
 {                                                                                                                                                   \
    PREAMBLE(DATA_BITS);                                                                                                                             \
    {                                                                                                                                                \
-     auto oldC = CC_NDEP & AMD64G_CC_MASK_C;                                                                                                        \
+     auto oldC = CC_NDEP & X86G_CC_MASK_C;                                                                                                        \
      /*ok*/MASKcf(return  ite(oldC!=0, DATA_UTYPE(CC_DEP1) <= DATA_UTYPE((CC_DEP2 ^ oldC)),DATA_UTYPE(CC_DEP1) < DATA_UTYPE((CC_DEP2 ^ oldC)));  )\
      /*ok*/MASKpf(return parity_table(((CC_DEP1 - (CC_DEP2 ^ oldC)) - oldC));                                                                       )\
-     /*ok*/MASKaf(return bit2ret((((CC_DEP1 - (CC_DEP2 ^ oldC)) - oldC) ^ CC_DEP1 ^ (CC_DEP2 ^ oldC)), AMD64G_CC_SHIFT_A);                          )\
+     /*ok*/MASKaf(return bit2ret((((CC_DEP1 - (CC_DEP2 ^ oldC)) - oldC) ^ CC_DEP1 ^ (CC_DEP2 ^ oldC)), X86G_CC_SHIFT_A);                          )\
      /*ok*/MASKzf(return (DATA_UTYPE(((CC_DEP1 - (CC_DEP2 ^ oldC)) - oldC)) == 0) ;                                                              )\
      /*ok*/MASKsf(return bit2ret(((CC_DEP1 - (CC_DEP2 ^ oldC)) - oldC),  DATA_BITS - 1);                                                            )\
      /*ok*/MASKof(return bit2ret((CC_DEP1 ^ (CC_DEP2 ^ oldC)) & (CC_DEP1 ^ ((CC_DEP1 - (CC_DEP2 ^ oldC)) - oldC)), DATA_BITS - 1) ;                 )\
@@ -112,9 +112,9 @@ extern "C" {
 {                                                                                                           \
    PREAMBLE(DATA_BITS);                                                                                     \
    {                                                                                                        \
-     /*ok*/MASKcf(return bit2ret(CC_NDEP,AMD64G_CC_SHIFT_C);                                                )\
+     /*ok*/MASKcf(return bit2ret(CC_NDEP,X86G_CC_SHIFT_C);                                                )\
      /*ok*/MASKpf(return parity_table(CC_DEP1);                                                             )\
-     /*ok*/MASKaf(return bit2ret((CC_DEP1 ^ (CC_DEP1 - 1) ^ 1), AMD64G_CC_SHIFT_A);                   )\
+     /*ok*/MASKaf(return bit2ret((CC_DEP1 ^ (CC_DEP1 - 1) ^ 1), X86G_CC_SHIFT_A);                   )\
      /*ok*/MASKzf(return (DATA_UTYPE(CC_DEP1) == 0) ;                                                    )\
      /*ok*/MASKsf(return bit2ret(CC_DEP1, DATA_BITS - 1);                                                   )\
      /*ok*/MASKof(return ((CC_DEP1 & DATA_MASK) == SIGN_MASK) ;                                             )\
@@ -128,9 +128,9 @@ extern "C" {
 {                                                                                                           \
    PREAMBLE(DATA_BITS);                                                                                     \
    {                                                                                                        \
-     /*ok*/MASKcf(return bit2ret(CC_NDEP,AMD64G_CC_SHIFT_C);                                                )\
+     /*ok*/MASKcf(return bit2ret(CC_NDEP,X86G_CC_SHIFT_C);                                                )\
      /*ok*/MASKpf(return parity_table(CC_DEP1);                                                             )\
-     /*ok*/MASKaf(return bit2ret((CC_DEP1 ^ (CC_DEP1 + 1) ^ 1), AMD64G_CC_SHIFT_A);                   )\
+     /*ok*/MASKaf(return bit2ret((CC_DEP1 ^ (CC_DEP1 + 1) ^ 1), X86G_CC_SHIFT_A);                   )\
      /*ok*/MASKzf(return (DATA_UTYPE(CC_DEP1) == 0) ;                                                    )\
      /*ok*/MASKsf(return bit2ret(CC_DEP1, DATA_BITS - 1);                                                   )\
      /*ok*/MASKof(return ((CC_DEP1 & DATA_MASK) == ((UInt)SIGN_MASK - 1)) ;                                )\
@@ -160,7 +160,7 @@ extern "C" {
 {                                                                                                           \
    PREAMBLE(DATA_BITS);                                                                                     \
    {                                                                                                        \
-     /*ok*/MASKcf(return bit2ret(CC_DEP2, AMD64G_CC_SHIFT_C);                                               )\
+     /*ok*/MASKcf(return bit2ret(CC_DEP2, X86G_CC_SHIFT_C);                                               )\
      /*ok*/MASKpf(return parity_table(CC_DEP1);                                                             )\
      /*ok*/MASKaf(return Vns((CC_DEP1), 0, 1); /* undefined */                                              )\
      /*ok*/MASKzf(return (DATA_UTYPE(CC_DEP1) == 0) ;                                                    )\
@@ -178,12 +178,12 @@ extern "C" {
 {                                                                                                           \
    PREAMBLE(DATA_BITS);                                                                                     \
    {                                                                                                        \
-    /*ok*/MASKcf(  return bit2ret(CC_DEP1, AMD64G_CC_SHIFT_C);                                              )\
-    /*ok*/MASKpf(  return bit2ret(CC_NDEP, AMD64G_CC_SHIFT_P);                                              )\
-    /*ok*/MASKaf(  return bit2ret(CC_NDEP, AMD64G_CC_SHIFT_A);                                              )\
-    /*ok*/MASKzf(  return bit2ret(CC_NDEP, AMD64G_CC_SHIFT_Z);                                              )\
-    /*ok*/MASKsf(  return bit2ret(CC_NDEP, AMD64G_CC_SHIFT_S);                                              )\
-    /*ok*/MASKof(  return bit2ret((lshift_o(CC_DEP1, 11 - (DATA_BITS - 1)) ^ lshift_o(CC_DEP1, 11)), AMD64G_CC_SHIFT_O);)\
+    /*ok*/MASKcf(  return bit2ret(CC_DEP1, X86G_CC_SHIFT_C);                                              )\
+    /*ok*/MASKpf(  return bit2ret(CC_NDEP, X86G_CC_SHIFT_P);                                              )\
+    /*ok*/MASKaf(  return bit2ret(CC_NDEP, X86G_CC_SHIFT_A);                                              )\
+    /*ok*/MASKzf(  return bit2ret(CC_NDEP, X86G_CC_SHIFT_Z);                                              )\
+    /*ok*/MASKsf(  return bit2ret(CC_NDEP, X86G_CC_SHIFT_S);                                              )\
+    /*ok*/MASKof(  return bit2ret(CC_DEP1, DATA_BITS - 1).boolXor(bit2ret(CC_DEP1, 0));                     )\
    }                                                                                                        \
 }
 
@@ -196,11 +196,11 @@ extern "C" {
    PREAMBLE(DATA_BITS);                                                                                     \
    {                                                                                                        \
     /*ok*/MASKcf(  return bit2ret(CC_DEP1, (DATA_BITS-1));                                                  )\
-    /*ok*/MASKpf(  return bit2ret(CC_NDEP, AMD64G_CC_SHIFT_P);                                              )\
-    /*ok*/MASKaf(  return bit2ret(CC_NDEP, AMD64G_CC_SHIFT_A);                                              )\
-    /*ok*/MASKzf(  return bit2ret(CC_NDEP, AMD64G_CC_SHIFT_Z);                                              )\
-    /*ok*/MASKsf(  return bit2ret(CC_NDEP, AMD64G_CC_SHIFT_S);                                              )\
-    /*ok*/MASKof(  return bit2ret((lshift_o(CC_DEP1,  11-(DATA_BITS-1))  ^ lshift_o(CC_DEP1, 11-(DATA_BITS-1)+1)), AMD64G_CC_SHIFT_O); )\
+    /*ok*/MASKpf(  return bit2ret(CC_NDEP, X86G_CC_SHIFT_P);                                              )\
+    /*ok*/MASKaf(  return bit2ret(CC_NDEP, X86G_CC_SHIFT_A);                                              )\
+    /*ok*/MASKzf(  return bit2ret(CC_NDEP, X86G_CC_SHIFT_Z);                                              )\
+    /*ok*/MASKsf(  return bit2ret(CC_NDEP, X86G_CC_SHIFT_S);                                              )\
+    /*ok*/MASKof(  return bit2ret(CC_DEP1, DATA_BITS - 1).boolXor(bit2ret(CC_DEP1, DATA_BITS - 2));         )\
    }                                                                                                        \
 }
 
@@ -271,15 +271,15 @@ extern "C" {
 {                                                                                                           \
    PREAMBLE(DATA_BITS);                                                                                     \
    {                                                                                                        \
-    /*ok*/MASKcf({ auto oldOC = (CC_NDEP >> AMD64G_CC_SHIFT_C) & 1;                                      \
+    /*ok*/MASKcf({ auto oldOC = (CC_NDEP >> X86G_CC_SHIFT_C) & 1;                                      \
                    return ite(oldOC==1,                                                                  \
         (DATA_UTYPE(((CC_DEP1 + (CC_DEP2 ^ oldOC)) + oldOC)) <= DATA_UTYPE(CC_DEP1)),                       \
         (DATA_UTYPE(((CC_DEP1 + (CC_DEP2 ^ oldOC)) + oldOC)) < DATA_UTYPE(CC_DEP1)));    }                  )\
-    /*ok*/MASKpf(  return bit2ret(CC_NDEP, AMD64G_CC_SHIFT_P);                                              )\
-    /*ok*/MASKaf(  return bit2ret(CC_NDEP, AMD64G_CC_SHIFT_A);                                              )\
-    /*ok*/MASKzf(  return bit2ret(CC_NDEP, AMD64G_CC_SHIFT_Z);                                              )\
-    /*ok*/MASKsf(  return bit2ret(CC_NDEP, AMD64G_CC_SHIFT_S);                                              )\
-    /*ok*/MASKof(  return bit2ret(CC_NDEP, AMD64G_CC_SHIFT_O);                                              )\
+    /*ok*/MASKpf(  return bit2ret(CC_NDEP, X86G_CC_SHIFT_P);                                              )\
+    /*ok*/MASKaf(  return bit2ret(CC_NDEP, X86G_CC_SHIFT_A);                                              )\
+    /*ok*/MASKzf(  return bit2ret(CC_NDEP, X86G_CC_SHIFT_Z);                                              )\
+    /*ok*/MASKsf(  return bit2ret(CC_NDEP, X86G_CC_SHIFT_S);                                              )\
+    /*ok*/MASKof(  return bit2ret(CC_NDEP, X86G_CC_SHIFT_O);                                              )\
    }                                                                                                        \
 }
 
@@ -287,12 +287,12 @@ extern "C" {
 {                                                                                                           \
    PREAMBLE(DATA_BITS);                                                                                     \
    {                                                                                                        \
-    /*ok*/MASKpf(  return bit2ret(CC_NDEP, AMD64G_CC_SHIFT_P);                                              )\
-    /*ok*/MASKaf(  return bit2ret(CC_NDEP, AMD64G_CC_SHIFT_A);                                              )\
-    /*ok*/MASKzf(  return bit2ret(CC_NDEP, AMD64G_CC_SHIFT_Z);                                              )\
-    /*ok*/MASKsf(  return bit2ret(CC_NDEP, AMD64G_CC_SHIFT_S);                                              )\
-    /*ok*/MASKof(  return bit2ret(CC_NDEP, AMD64G_CC_SHIFT_O);                                              )\
-        auto oldOC = (CC_NDEP >> AMD64G_CC_SHIFT_O) & 1;                                                 \
+    /*ok*/MASKpf(  return bit2ret(CC_NDEP, X86G_CC_SHIFT_P);                                              )\
+    /*ok*/MASKaf(  return bit2ret(CC_NDEP, X86G_CC_SHIFT_A);                                              )\
+    /*ok*/MASKzf(  return bit2ret(CC_NDEP, X86G_CC_SHIFT_Z);                                              )\
+    /*ok*/MASKsf(  return bit2ret(CC_NDEP, X86G_CC_SHIFT_S);                                              )\
+    /*ok*/MASKof(  return bit2ret(CC_NDEP, X86G_CC_SHIFT_O);                                              )\
+        auto oldOC = (CC_NDEP >> X86G_CC_SHIFT_O) & 1;                                                 \
     /*ok*/MASKof(  return ite(oldOC==1,                                                                  \
         (DATA_UTYPE(((CC_DEP1 + (CC_DEP2 ^ oldOC)) + oldOC)) <= DATA_UTYPE(CC_DEP1)),                       \
         (DATA_UTYPE(((CC_DEP1 + (CC_DEP2 ^ oldOC)) + oldOC)) < DATA_UTYPE(CC_DEP1)));                       )\
@@ -593,9 +593,9 @@ inline Vns _z3_x86g_calculate_condition (  Int/*X86Condcode*/ cond,
 
       case X86CondNLE:
       case X86CondLE: /* ((SF xor OF) or ZF)  == 1 */{
-         auto sf = z3_amd64g_calculate_rflags_sf(cc_op, cc_dep1, cc_dep2, cc_ndep);
-         auto of = z3_amd64g_calculate_rflags_of(cc_op, cc_dep1, cc_dep2, cc_ndep);
-         auto zf = z3_amd64g_calculate_rflags_zf(cc_op, cc_dep1, cc_dep2, cc_ndep);
+         auto sf = z3_x86g_calculate_eflags_sf(cc_op, cc_dep1, cc_dep2, cc_ndep);
+         auto of = z3_x86g_calculate_eflags_of(cc_op, cc_dep1, cc_dep2, cc_ndep);
+         auto zf = z3_x86g_calculate_eflags_zf(cc_op, cc_dep1, cc_dep2, cc_ndep);
          return (sf.boolXor(of)) || zf;
       }
       default:

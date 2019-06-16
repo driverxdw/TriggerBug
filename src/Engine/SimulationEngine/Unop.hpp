@@ -60,13 +60,11 @@ static inline int MostSignificantBit64(uint64_t n) {
 static inline Z3_ast bool2bv(Z3_context ctx,Z3_ast ast) {
     Z3_inc_ref(ctx, ast);
     Z3_sort sort = Z3_mk_bv_sort(ctx, 1);
-    Z3_inc_ref(ctx, (Z3_ast)sort);
     Z3_ast zero = Z3_mk_int(ctx, 0, sort);
     Z3_inc_ref(ctx, zero);
     Z3_ast one = Z3_mk_int(ctx, 1, sort);
     Z3_inc_ref(ctx, one);
     Z3_ast result = Z3_mk_ite(ctx, ast, one, zero);
-    Z3_dec_ref(ctx, (Z3_ast)sort);
     Z3_dec_ref(ctx, one);
     Z3_dec_ref(ctx, zero);
     Z3_dec_ref(ctx, ast);
@@ -84,9 +82,10 @@ inline Vns State::T_Unop(IROp op, IRExpr* arg1) {
     Vns a = tIRExpr(arg1);
     //a.tostr();
     if (a.symbolic()) goto dosymbol;
+    {
     switch (op) {
     case Iop_1Uto8:vassert(a.bitn == 1); return Vns(a, (UChar)((UChar)a ? 1 : 0));
-    case Iop_1Uto32:vassert(a.bitn == 1); return Vns(a, (UShort)((UChar)a ? 1 : 0));
+    case Iop_1Uto32:vassert(a.bitn == 1); return Vns(a, (UInt)((UChar)a ? 1 : 0));
     case Iop_1Uto64:vassert(a.bitn == 1); return Vns(a, (ULong)((UChar)a ? 1 : 0));
     case Iop_1Sto8:vassert(a.bitn == 1); return Vns(a, (Char)((UChar)a ? -1 : 0));
     case Iop_1Sto16:vassert(a.bitn == 1); return Vns(a, (Short)((UChar)a ? -1 : 0));
@@ -119,16 +118,16 @@ inline Vns State::T_Unop(IROp op, IRExpr* arg1) {
 
     case Iop_32Sto64:return Iop_to(Int, Long);
     case Iop_32Uto64:return Iop_to(UInt, ULong);
-    case Iop_32UtoV128:return Vns(a, _mm_set_epi32(0, 0, 0, a), a);
-    case Iop_64UtoV128:return Vns(a, _mm_set_epi64x(0, a), a);
+    case Iop_32UtoV128:return Vns(a, _mm_set_epi32(0, 0, 0, a));
+    case Iop_64UtoV128:return Vns(a, _mm_set_epi64x(0, a));
 
     case Iop_64to32:return Iop_to(ULong, UInt);
     case Iop_64to16:return Iop_to(ULong, UShort);
     case Iop_64to8 :return Iop_to(ULong, UChar);
-    case Iop_64HIto32:return Vns(a, a.get<Int, 4>(), a);
+    case Iop_64HIto32:return Vns(a, a.get<Int, 4>());
     case Iop_32to16:return Iop_to(UInt, UShort);
     case Iop_32to8:return Iop_to(UInt, UChar);
-    case Iop_32HIto16:return Vns(a, a.get<UShort, 2>(), a);
+    case Iop_32HIto16:return Vns(a, a.get<UShort, 2>());
 
 
     case Iop_V128to32:return Vns(a, ((__m128i)a).m128i_u32[0]);//OK
@@ -358,7 +357,8 @@ inline Vns State::T_Unop(IROp op, IRExpr* arg1) {
     default:
     }
     goto FAILD;
-
+    }
+    {
 dosymbol:
     switch (op) {
     case Iop_1Uto8: return Iop_ZEXT(1, 8);
@@ -410,7 +410,7 @@ dosymbol:
     case Iop_128HIto64:return Vns(m_ctx, Z3_mk_extract(m_ctx, 127, 64, a), 64);
     }
 
-
+    }
 FAILD:
     ppIROp(op);
     vpanic("tIRType");
