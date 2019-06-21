@@ -15,7 +15,7 @@ Revision History:
 //#undef _DEBUG
 #define DLL_EXPORTS
 //#define INIFILENAME "C:\\Users\\bibi\\Desktop\\TriggerBug\\PythonFrontEnd\\TriggerBug-asong.xml"
-#define INIFILENAME "C:\\Users\\bibi\\Desktop\\eee\\TriggerBug-default32.xml"
+#define INIFILENAME "C:/Users/bibi/Desktop/TriggerBug/PythonFrontEnd/TriggerBug-default32.xml"
 
 
 #include "engine.hpp"
@@ -354,10 +354,35 @@ State_Tag avoid_ret(State *s) {
     return Death;
 }
 
+
+
 State_Tag success_ret(State *s) {
     s->solv.push();
     auto esp = s->regs.Iex_Get<Ity_I32>(24);
-    for (int i = 0; i <= 5; i++) {
+    for (int i = 13; i <= 16; i++) {
+        auto al = s->mem.Iex_Load<Ity_I8>(esp + 92 + i);
+        auto bl = s->mem.Iex_Load<Ity_I8>(esp + 8 + i);
+        //s->add_assert(al == 0, 1);
+        //s->add_assert(bl == 0, 1);
+        s->add_assert_eq(al, bl);
+    }
+    s->add_assert((s->mem.Iex_Load<Ity_I8>(esp + 92 + 0) == 8) && (s->mem.Iex_Load<Ity_I8>(esp + 8 + 0) == 8), 1);
+    if (s->solv.check() == sat) {
+        vex_printf("sat");
+        auto m = s->solv.get_model();
+        std::cout << m << std::endl;
+    }
+    else {
+        vex_printf("unsat??????????\n\n");
+    }
+
+
+    s->solv.pop();
+
+    
+
+    s->solv.push();
+    for (int i = 0; i <= 16; i++) {
         auto al = s->mem.Iex_Load<Ity_I8>(esp + 92 + i);
         auto bl = s->mem.Iex_Load<Ity_I8>(esp + 8 + i);
         s->add_assert_eq(al, bl);
@@ -380,10 +405,23 @@ State_Tag success_ret(State *s) {
 
 //#include "Engine/Z3_Target_Call/Guest_Helper.hpp"
 
+Vns flag_limit(Vns &flag) {
+    char flags_char[] = "@_-{}1:() ^";
+    Vns re = Vns(flag, flags_char[0]) == flag;
+    for (int i = 1; i < sizeof(flags_char); i++) {
+        re = re || (Vns(flag, flags_char[i]) == flag);
+    }
+    auto ao1 = flag >= 'a' && flag <= 'z';
+    auto ao2 = flag >= 'A' && flag <= 'Z';
+    auto ao3 = flag >= '0' && flag <= '9';
+    return re || ao1 || ao2 || ao3;
+}
 
 
 int main() {
+
     State state(INIFILENAME, NULL, True);
+    avoid_branch_oep.emplace_back(0xce13d2);
 
     Vns FLAG2 = state.m_ctx.bv_const("buff", 32);
     Vns dfd1(state.m_ctx,0,32);
@@ -401,12 +439,14 @@ int main() {
         sprintf_s(buff, sizeof(buff), "flag%d", i);
         Vns FLAG = state.m_ctx.bv_const(buff, 8);
         state.mem.Ist_Store(eax+i, FLAG);
-       /* auto ao1 = FLAG > 8 && FLAG < 14;
-        auto ao2 = FLAG > 31 && FLAG < 127;
-        state.add_assert(FLAG<128, True);*/
-        auto ao1 = FLAG > 8 && FLAG < 14;
-        auto ao2 = FLAG > 31 && FLAG < 127;
-        state.add_assert(ao1 || ao2, True);
+
+        auto ao2 = FLAG > 31 && FLAG < 128;
+        state.add_assert( ao2, True);
+
+
+        //state.add_assert(FLAG < 128, True);
+
+        //state.add_assert(flag_limit(FLAG), True);
     }
 
     TB_hook_add(&state, 0xCE13E0, success_ret);

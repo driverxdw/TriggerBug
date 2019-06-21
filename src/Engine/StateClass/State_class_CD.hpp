@@ -59,7 +59,7 @@ public:
 	z3::solver solv;
 	std::queue< std::function<void()> > check_stack;
 	Long delta;
-	std::mutex unit_lock;
+	bool unit_lock;
 
 protected:
 	Bool need_record;
@@ -117,6 +117,7 @@ public:
 	inline Vns T_Triop(IROp, IRExpr*, IRExpr*, IRExpr*);
 	inline Vns T_Qop(IROp, IRExpr*, IRExpr*, IRExpr*, IRExpr*);
 	inline Vns ILGop(IRLoadG *lg);
+    inline bool avoid_check(ADDR);
 
 	inline operator context&();
 	inline operator Z3_context();

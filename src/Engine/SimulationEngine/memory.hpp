@@ -129,6 +129,7 @@ for (UInt i1 = 0; i1 < CR3_point->used; i1++) {																				\
 typedef struct PAGE {
     ULong user;
     UInt used_point;
+    bool unit_mutex;
     Register<0x1000> *unit;
 }PAGE;
 
@@ -181,6 +182,32 @@ static inline UInt newDifUser()
     return global_user++;
 }
 
+static inline void inc_used_ref(PAGE *pt) {
+    bool xchgbv = false;
+    while (!xchgbv) {
+        __asm__ __volatile("xchgb %b0,%1":"=r"(xchgbv) : "m"(pt->unit_mutex), "0"(xchgbv) : "memory");
+    }
+    if (!pt->used_point) {
+        vpanic("error inc_used_ref ???");
+    }
+    pt->used_point++;
+    pt->unit_mutex = true;
+}
+
+
+static inline void dec_used_ref(PAGE *pt) {
+    bool xchgbv = false;
+    while (!xchgbv) {
+        __asm__ __volatile("xchgb %b0,%1":"=r"(xchgbv) : "m"(pt->unit_mutex), "0"(xchgbv) : "memory");
+    }
+    if (--pt->used_point) {
+        pt->unit_mutex = true;
+    }else{
+        if (pt->unit)
+            delete pt->unit;
+        delete pt;
+    }
+}
 
 static inline Vns linearGet(PAGE *P, UInt offset, UInt length) {
 
@@ -258,31 +285,24 @@ public:
         vassert(this->user != father_mem.user);
         this->copy(father_mem);
     }
+
     inline ~MEM() {
-        for (auto _Page : mem_change_map) {
-            delete _Page.second;
-        }
-        freeMap();
-    }
-    inline void freeMap() {
         PML4T *CR3_point = *CR3;
         LCODEDEF5(LSTRUCT2, pdpt_point, free_pdpt_point, CR3_point, i1,
             LCODEDEF5(LSTRUCT3, pdt_point, free_pdt_point, pdpt_point, i2,
                 LCODEDEF5(LSTRUCT4, pt_point, free_pt_point, pdt_point, i3,
                     PAGE_link *page_point = pt_point->top;
-        for (UInt i4 = 0; i4 < pt_point->used; i4++) {
-            UShort index = page_point->index;
+                    for (UInt i4 = 0; i4 < pt_point->used; i4++) {
+                        UShort index = page_point->index;
 
-            /*PAGE * pt = pt_point->pt[index];
-            if(pt->unit)
-                delete pt->unit;
-            delete pt;*/
+                        PAGE * pt = pt_point->pt[index];
+                        dec_used_ref(pt);
 
-            auto free_page_point = page_point;
-            page_point = page_point->next;
-            delete free_page_point;
-        }
-        )
+                        auto free_page_point = page_point;
+                        page_point = page_point->next;
+                        delete free_page_point;
+                    }
+                )
             )
         )
     }
@@ -351,7 +371,8 @@ public:
                     goto _returnaddr;
                 memset(*page, 0, sizeof(PAGE));
                 (*pt)->used += 1;
-                (*page)->used_point += 1;
+                (*page)->unit_mutex = true;
+                (*page)->used_point = 1;
                 (*page)->user = -1ull;
                 (*page)->unit = NULL;
                 //Over
@@ -388,7 +409,8 @@ public:
                             memset(pt->pt, 0, pt_point->size * 8);
                         }
                         pt->pt[index] = pt_point->pt[index];//copy
-                        (pt->pt[index])->used_point += 1;
+                        //(pt->pt[index])->used_point += 1;
+                        inc_used_ref((pt->pt[index]));
                         {
                             PAGE_link *orignal = (pt)->top;
                             pt->top = page_l;
@@ -922,10 +944,12 @@ private:
             *page = new PAGE;
             (*page)->unit = new Register<0x1000>(*(P->unit), m_ctx, need_record);
 
-            --P->used_point;//�߳���
+            //--P->used_point;
+            dec_used_ref(P);
             P = (*page);
             P->user = user;
             P->used_point = 1;
+            P->unit_mutex = true;
             mem_change_map[ALIGN((Addr64)address, 0x1000)] = (*page)->unit;
         }
     }

@@ -130,7 +130,8 @@ State::State(char *filename, Addr64 gse, Bool _need_record, PyObject *_base = NU
 	status(NewState),
 	VexGuestARCHState(NULL),
 	delta(0),
-	base(_base)
+	base(_base),
+    unit_lock(true)
 {
     pap.state = (void*)(this);
     pap.n_page_mem = _n_page_mem;
@@ -216,7 +217,8 @@ State::State(State *father_state, Addr64 gse, PyObject *_base = NULL) :
 	status(NewState),
 	VexGuestARCHState(NULL),
 	delta(0),
-	base(_base)
+	base(_base),
+    unit_lock(true)
 {
     pap.state = (void*)(this);
     pap.n_page_mem = _n_page_mem;
@@ -318,6 +320,14 @@ inline std::ostream & operator<<(std::ostream & out, State & n) {
     return out<< (std::string)n;
 }
 
+inline bool State::avoid_check(ADDR oep) {
+    for (auto av : avoid_branch_oep) {
+        if (oep == av) {
+            return 1;
+        }
+    }
+    return 0;
+}
 
 inline IRSB* State::BB2IR() {
 	mem.set_double_page(guest_start, pap);
@@ -631,24 +641,6 @@ For_Begin_NO_Trans:
 					IRStmt *s = irsb->stmts[i];
 					if (guest_start == traceIrAddrress) { 
 						NEED_CHECK = True; 
-                        //if (ir_temp[t_index][19].real()) {
-                        //    if (0x04fef70 == (ADDR)ir_temp[t_index][19]) {
-                        //        auto dfd = ir_temp[t_index][17];
-                        //        std::cout << "???" << (int)ir_temp[t_index][24].bitn << std::endl;
-                        //        std::cout <<"???"<< (int)ir_temp[t_index][24].m_kind << std::endl;
-                        //        std::cout << Z3_ast_to_string(m_ctx, ir_temp[t_index][24]) << std::endl;
-                        //        std::cout << "???" << (int)ir_temp[t_index][24].m_kind << std::endl;
-                        //        std::cout << "???" << (int)ir_temp[t_index][24].sort_kind() << std::endl;
-
-                        //        auto fg1 = (Z3_context)Vns(m_ctx, 0, 16);
-                        //        auto fg2 = (Z3_context)ir_temp[t_index][24];
-                        //        std::cout << "jjj" << fg1<< fg2 << std::endl;
-
-                        //        Vns sdf(m_ctx, Z3_mk_bvsub(m_ctx, ir_temp[t_index][24], dfd), 16);
-                        //        //Vns sdf(m_ctx, Z3_mk_bvsub(m_ctx, Vns(m_ctx, 0, 16), dfd), 16);
-                        //        std::cout << Z3_ast_to_string(m_ctx, sdf) << std::endl;
-                        //    }
-                        //}
 					}
 					if(NEED_CHECK) ppIRStmt(s);
 					switch (s->tag) {
@@ -658,26 +650,28 @@ For_Begin_NO_Trans:
 						if (NEED_CHECK)std::cout << ir_temp[t_index][s->Ist.WrTmp.tmp] << std::endl;
 						break;
 					}
-					case Ist_CAS /*比较和交换*/: {//xchg    rax, [r10]
-						{
-							std::unique_lock<std::mutex> lock(unit_lock);
-							IRCAS cas = *(s->Ist.CAS.details);
-							Vns addr = tIRExpr(cas.addr);//r10.value
-							Vns expdLo = tIRExpr(cas.expdLo);
-							Vns dataLo = tIRExpr(cas.dataLo);
-							if ((cas.oldHi != IRTemp_INVALID) && (cas.expdHi)) {//double
-								Vns expdHi = tIRExpr(cas.expdHi);
-								Vns dataHi = tIRExpr(cas.dataHi);
-								ir_temp[t_index][cas.oldHi] = mem.Iex_Load(addr, length2ty(expdLo.bitn));
-								ir_temp[t_index][cas.oldLo] = mem.Iex_Load(addr, length2ty(expdLo.bitn));
-								mem.Ist_Store(addr, dataLo);
-								mem.Ist_Store(addr + (dataLo.bitn >> 3), dataHi);
-							}
-							else {//single
-								ir_temp[t_index][cas.oldLo] = mem.Iex_Load(addr, length2ty(expdLo.bitn));
-								mem.Ist_Store(addr, dataLo);
-							}
+                    case Ist_CAS /*比较和交换*/: {//xchg    rax, [r10]
+                        bool xchgbv = false;
+                        while (!xchgbv) {
+                            __asm__ __volatile("xchgb %b0,%1":"=r"(xchgbv) : "m"(unit_lock), "0"(xchgbv) : "memory");
+                        }
+						IRCAS cas = *(s->Ist.CAS.details);
+						Vns addr = tIRExpr(cas.addr);//r10.value
+						Vns expdLo = tIRExpr(cas.expdLo);
+						Vns dataLo = tIRExpr(cas.dataLo);
+						if ((cas.oldHi != IRTemp_INVALID) && (cas.expdHi)) {//double
+							Vns expdHi = tIRExpr(cas.expdHi);
+							Vns dataHi = tIRExpr(cas.dataHi);
+							ir_temp[t_index][cas.oldHi] = mem.Iex_Load(addr, length2ty(expdLo.bitn));
+							ir_temp[t_index][cas.oldLo] = mem.Iex_Load(addr, length2ty(expdLo.bitn));
+							mem.Ist_Store(addr, dataLo);
+							mem.Ist_Store(addr + (dataLo.bitn >> 3), dataHi);
 						}
+						else {//single
+							ir_temp[t_index][cas.oldLo] = mem.Iex_Load(addr, length2ty(expdLo.bitn));
+							mem.Ist_Store(addr, dataLo);
+						}
+                        unit_lock = true;
 						break;
 					}
 					case Ist_Exit: {
@@ -695,6 +689,7 @@ Exit_guard_true:
 											vex_printf("TrggerBug: passed the Ijk_SigSEGV at: %llx\n", guest_start);
 											continue;
 										}
+                                    if (!Ijk_call_back) { status = Death; goto EXIT; }
 									status = Ijk_call_back(this, s->Ist.Exit.jk);
 									if (status != Running) {
 										goto EXIT;
@@ -714,56 +709,61 @@ Exit_guard_true:
 							break;
 						}
 						else {
-							std::vector<Z3_ast> guard_result;
-							switch (eval_all(guard_result, solv, guard)) {
-							case 0: status = Death; goto EXIT;
-							case 1: {
-								uint64_t rgurd;
-								Z3_get_numeral_uint64(m_ctx, guard_result[0], &rgurd);
-								Z3_dec_ref(m_ctx, guard_result[0]);
-								if (rgurd & 1) {
-									goto Exit_guard_true;
-								}
-								break;
-							}
-							case 2: {
-								State *state_J = new State(this, s->Ist.Exit.dst->Ico.U64);
-								branch.emplace_back(state_J);
-								state_J->add_assert(guard.translate(*state_J), True);
-								if (traceState)
-									std::cout << "\n+++++++++++++++ push : " << std::hex << state_J->guest_start << " +++++++++++++++\n" << std::endl;
-
-								Vns _next(tIRExpr(irsb->next));
-								if (_next.real()) {
-									State *state = new State(this, _next);
-									branch.emplace_back(state);
-									state->add_assert(guard.translate(*state), False);
-									if (traceState)
-										std::cout << "\n+++++++++++++++ push : " << std::hex << state->guest_start << " +++++++++++++++\n" << std::endl;
-
-								}
-								else {
-									std::vector<Z3_ast> next_result;
-									eval_all(next_result, solv, _next);
-									for (auto && re : next_result) {
-										uint64_t rgurd;
-										Z3_get_numeral_uint64(m_ctx, re, &rgurd);
-
-										State *state = new State(this, rgurd);
-										branch.emplace_back(state);
-										state->add_assert(guard.translate(*state), False);
-										state->add_assert_eq(Vns(m_ctx, Z3_translate(m_ctx, re, *state)), Vns(m_ctx, Z3_translate(m_ctx, _next, *state)));
-										if (traceState)
-											std::cout << "\n+++++++++++++++ push : " << std::hex << state->guest_start << " +++++++++++++++\n" << std::endl;
-										Z3_dec_ref(m_ctx, re);
-									}
-								}
-								Z3_dec_ref(m_ctx, guard_result[0]);
-								Z3_dec_ref(m_ctx, guard_result[1]);
-								status = Fork;
-								goto EXIT;
-							}
-							}
+                            int rgurd[2];
+                            std::vector<Z3_ast> guard_result;
+                            int num_guard = eval_all(guard_result, solv, guard);
+                            if (num_guard == 1) {
+                                Z3_get_numeral_int(m_ctx, guard_result[0], &rgurd[0]);
+                                Z3_dec_ref(m_ctx, guard_result[0]);
+                                if (rgurd[0]) {
+                                    add_assert(guard, True);
+                                    goto Exit_guard_true;
+                                }
+                                else {
+                                    add_assert(guard, False);
+                                }
+                            }
+                            else if (num_guard == 2) {
+                                Z3_dec_ref(m_ctx, guard_result[0]);
+                                Z3_dec_ref(m_ctx, guard_result[1]);
+                                struct _bs {
+                                    ADDR addr;
+                                    Z3_ast _s_addr;
+                                    bool _not;
+                                };
+                                std::vector<_bs> bs_v;
+                                bs_v.emplace_back(_bs{ s->Ist.Exit.dst->Ico.U64 ,NULL, True });
+                                Vns _next = tIRExpr(irsb->next);
+                                if (_next.real()) {
+                                    bs_v.emplace_back(_bs{ _next ,_next, False });
+                                }
+                                else {
+                                    std::vector<Z3_ast> next_result;
+                                    eval_all(next_result, solv, _next);
+                                    for (auto && re : next_result) {
+                                        uint64_t r_next;
+                                        Z3_get_numeral_uint64(m_ctx, re, &r_next);
+                                        bs_v.emplace_back(_bs{ r_next ,_next, False });
+                                    }
+                                }
+                                if (traceState) std::cout << "Fork at: " << std::hex << guest_start << "  {" << std::endl;
+                                for (auto && _bs : bs_v) {
+                                    State *state = new State(this, _bs.addr);
+                                    branch.emplace_back(state);
+                                    state->add_assert(guard.translate(*state), _bs._not);
+                                    if (_bs._s_addr) {
+                                        auto _next_a = Vns(state->m_ctx, Z3_translate(m_ctx, _bs._s_addr, *state));
+                                        auto _next_b = Vns(state->m_ctx, Z3_mk_unsigned_int64(state->m_ctx, _bs.addr, Z3_get_sort(state->m_ctx, _next_a)));
+                                        state->add_assert_eq(_next_a, _next_b);
+                                    }
+                                    if (traceState) std::cout << "    +++++++++++++++ push : " << std::hex << state->guest_start << " +++++++++++++++" << std::endl;
+                                }
+                                if (traceState) std::cout << " } Fork end" << std::endl;
+                                status = Fork; goto EXIT;
+                            }
+                            else {
+                                status = Death; goto EXIT;
+                            }
 						}
 					}
 					case Ist_NoOp: break;
@@ -913,13 +913,13 @@ bkp_pass:
 						goto For_Begin;
 					}
 				}
+Isb_next:
 				Vns next = tIRExpr(irsb->next);
 				if (next.real()) {
 					guest_start = next;
 				}
 				else {
 					std::vector<Z3_ast> result;
-					
 					switch (eval_all(result, solv, next)) {
 					case 0: next.~Vns(); goto EXIT;
 					case 1:
@@ -927,6 +927,7 @@ bkp_pass:
 						Z3_dec_ref(m_ctx, result[0]);
 						break;
 					default:
+                        if (traceState) std::cout << "Fork at: " << std::hex << guest_start << "  {" << std::endl;
 						for (auto && re : result) {
 							uint64_t rgurd;
 							Z3_get_numeral_uint64(m_ctx, re, &rgurd);
@@ -935,12 +936,12 @@ bkp_pass:
 							branch.emplace_back(state);
 
 							state->add_assert_eq(Vns(m_ctx, Z3_translate(m_ctx, re, *state)), next.translate(*state));
-							if (traceState)
-								std::cout << "\n+++++++++++++++ push : " << std::hex << state->guest_start << " +++++++++++++++\n" << std::endl;
+							if (traceState) std::cout << "    +++++++++++++++ push : " << std::hex << state->guest_start << " +++++++++++++++" << std::endl;
 							Z3_dec_ref(m_ctx, re);
 						}
 						status = Fork;
-						next.~Vns();
+						//next.~Vns();
+                        if (traceState) std::cout << " } Fork end" << std::endl;
 						goto EXIT;
 					}
 				}
