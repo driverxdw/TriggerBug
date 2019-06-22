@@ -138,7 +138,7 @@ static Addr32 guest_R15_curr_instr_notENC;
 static Bool __curr_is_Thumb;
 
 /* MOD: The IRSB* into which we're generating code. */
-static IRSB* irsb;
+static IRSB* irsb[MAX_THREADS];
 
 /* These are to do with handling writes to r15.  They are initially
    set at the start of disInstr_ARM_WRK to indicate no update,
@@ -151,18 +151,22 @@ static IRSB* irsb;
 
 /* MOD.  Initially False; set to True iff abovementioned handling is
    required. */
-static Bool r15written;
+static Bool r15written[MAX_THREADS];
 
 /* MOD.  Initially IRTemp_INVALID.  If the r15 branch to be generated
    is conditional, this holds the gating IRTemp :: Ity_I32.  If the
    branch to be generated is unconditional, this remains
    IRTemp_INVALID. */
-static IRTemp r15guard; /* :: Ity_I32, 0 or 1 */
+static IRTemp r15guard[MAX_THREADS]; /* :: Ity_I32, 0 or 1 */
 
 /* MOD.  Initially Ijk_Boring.  If an r15 branch is to be generated,
    this holds the jump kind. */
-static IRTemp r15kind;
+static IRTemp r15kind[MAX_THREADS];
 
+#define irsb irsb[temp_index()]
+#define r15written r15written[temp_index()]
+#define r15guard r15guard[temp_index()]
+#define r15kind r15kind[temp_index()]
 
 /*------------------------------------------------------------*/
 /*--- Debugging output                                     ---*/

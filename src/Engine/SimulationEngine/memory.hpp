@@ -535,8 +535,7 @@ public:
         if (user == P->user) {//WNC
             switch (ty) {
             case 8:
-            case Ity_I8:
-                return P->unit->Iex_Get<Ity_I8  >(offset);
+            case Ity_I8:  return P->unit->Iex_Get<Ity_I8  >(offset);
             case 16:
             case Ity_I16: {
                 if (offset >= 0xfff) {
@@ -616,15 +615,21 @@ public:
         }
         else {
             switch (ty) {
-            case Ity_I8:														return P->unit->Iex_Get<Ity_I8 >(offset, m_ctx);
+            case 8:
+            case Ity_I8:
+            case 16:													return P->unit->Iex_Get<Ity_I8 >(offset, m_ctx);
             case Ity_I16: if (offset >= 0xfff) { size = 2; goto linear_err2; }; return P->unit->Iex_Get<Ity_I16>(offset, m_ctx);
+            case 32:
             case Ity_F32:
-            case Ity_I32: if (offset >= 0xffd) { size = 4; goto linear_err2; }; return P->unit->Iex_Get<Ity_I32>(offset, m_ctx);;
+            case Ity_I32: if (offset >= 0xffd) { size = 4; goto linear_err2; }; return P->unit->Iex_Get<Ity_I32>(offset, m_ctx);
+            case 64:
             case Ity_F64:
-            case Ity_I64: if (offset >= 0xff9) { size = 8; goto linear_err2; }; return P->unit->Iex_Get<Ity_I64>(offset, m_ctx);;
+            case Ity_I64: if (offset >= 0xff9) { size = 8; goto linear_err2; }; return P->unit->Iex_Get<Ity_I64>(offset, m_ctx);
+            case 128:
             case Ity_I128:
-            case Ity_V128:if (offset >= 0xff1) { size = 16; goto linear_err2; }; return P->unit->Iex_Get<Ity_V128>(offset, m_ctx);;
-            case Ity_V256:if (offset >= 0xfe1) { size = 32; goto linear_err2; }; return P->unit->Iex_Get<Ity_V256>(offset, m_ctx);;
+            case Ity_V128:if (offset >= 0xff1) { size = 16; goto linear_err2; }; return P->unit->Iex_Get<Ity_V128>(offset, m_ctx);
+            case 256:
+            case Ity_V256:if (offset >= 0xfe1) { size = 32; goto linear_err2; }; return P->unit->Iex_Get<Ity_V256>(offset, m_ctx);
             default:vpanic("2333333");
             }
 

@@ -110,8 +110,9 @@ static VexEndness host_endness;
 static Addr64 guest_PC_curr_instr;
 
 /* MOD: The IRSB* into which we're generating code. */
-static IRSB* irsb;
+static IRSB* irsb[MAX_THREADS];
 
+#define irsb irsb[temp_index()]
 
 /*------------------------------------------------------------*/
 /*--- Debugging output                                     ---*/

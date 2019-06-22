@@ -35,14 +35,14 @@
 #include "libvex.h"
 
 /* MOD: The IRSB* into which we're generating code. */
-extern IRSB *irsb;
+extern IRSB *irsb[MAX_THREADS];
 
 /* Is our guest binary 32 or 64bit? Set at each call to
    disInstr_MIPS below. */
 extern Bool mode64;
 
 /* Pointer to the guest code area. */
-extern const UChar *guest_code;
+extern const UChar *guest_code[MAX_THREADS];
 
 /*------------------------------------------------------------*/
 /*---              DSP to IR function                      ---*/
@@ -130,7 +130,7 @@ static inline IRExpr *load(IRType ty, IRExpr * addr)
 /* Add a statement to the list held by "irsb". */
 static inline void stmt(IRStmt * st)
 {
-   addStmtToIRSB(irsb, st);
+   addStmtToIRSB(irsb[temp_index()], st);
 }
 
 static inline void assign(IRTemp dst, IRExpr * e)
@@ -151,7 +151,7 @@ static inline void store(IRExpr * addr, IRExpr * data)
 static inline IRTemp newTemp(IRType ty)
 {
    vassert(isPlausibleIRType(ty));
-   return newIRTemp(irsb->tyenv, ty);
+   return newIRTemp(irsb[temp_index()]->tyenv, ty);
 }
 
 static inline UShort extend_s_9to16(UInt x)

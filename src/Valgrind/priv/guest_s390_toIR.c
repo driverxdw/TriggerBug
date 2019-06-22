@@ -61,27 +61,34 @@ static void s390_irgen_CLC_EX(IRTemp, IRTemp, IRTemp);
 /*------------------------------------------------------------*/
 
 /* The IRSB* into which we're generating code. */
-static IRSB *irsb;
+static IRSB *irsb[MAX_THREADS];
 
 /* The guest address for the instruction currently being
    translated. */
-static Addr64 guest_IA_curr_instr;
+static Addr64 guest_IA_curr_instr[MAX_THREADS];
 
 /* The guest address for the instruction following the current instruction. */
-static Addr64 guest_IA_next_instr;
+static Addr64 guest_IA_next_instr[MAX_THREADS];
 
 /* Result of disassembly step. */
-static DisResult *dis_res;
+static DisResult *dis_res[MAX_THREADS];
 
 /* Resteer function and callback data */
 static Bool (*resteer_fn)(void *, Addr);
-static void *resteer_data;
+static void *resteer_data[MAX_THREADS];
 
 /* Whether to print diagnostics for illegal instructions. */
-static Bool sigill_diag;
+static Bool sigill_diag[MAX_THREADS];
 
 /* The last seen execute target instruction */
 ULong last_execute_target;
+
+#define irsb irsb[temp_index()]
+#define guest_IA_curr_instr guest_IA_curr_instr[temp_index()]
+#define guest_IA_next_instr guest_IA_next_instr[temp_index()]
+#define dis_res dis_res[temp_index()]
+#define resteer_data resteer_data[temp_index()]
+#define sigill_diag sigill_diag[temp_index()]
 
 /* The possible outcomes of a decoding operation */
 typedef enum {

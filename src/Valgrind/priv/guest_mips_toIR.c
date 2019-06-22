@@ -56,7 +56,8 @@
 static VexEndness host_endness;
 
 /* Pointer to the guest code area. */
-const UChar *guest_code;
+const UChar *guest_code[MAX_THREADS];
+#define guest_code guest_code[temp_index()]
 
 /* CONST: The guest address for the instruction currently being
    translated. */
@@ -67,7 +68,8 @@ static Addr64 guest_PC_curr_instr;
 #endif
 
 /* MOD: The IRSB* into which we're generating code. */
-IRSB *irsb;
+IRSB *irsb[MAX_THREADS];
+#define irsb irsb[temp_index()]
 
 /* Is our guest binary 32 or 64bit? Set at each call to
    disInstr_MIPS below. */

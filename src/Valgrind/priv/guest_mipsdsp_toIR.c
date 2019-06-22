@@ -10,6 +10,7 @@
 #include "guest_mips_defs.h"
 #include "mips_defs.h"
 
+#define irsb irsb[temp_index()]
 
 /* Put value to DSPControl register. Expression e is written to DSPControl as
    is. If only certain bits of DSPControl need to be changed, it should be done

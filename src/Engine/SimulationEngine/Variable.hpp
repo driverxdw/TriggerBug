@@ -427,10 +427,10 @@ public:
         }
         else {
             __m256i m32 = GET32(&this->pack._i8[lo >> 3]);
-            if (lo & 8) {
+            if (lo & 7) {
                 UChar bytes_n = (hi - lo + 1) >> 6;
                 for (int i = 0; i <= bytes_n; i++) {
-                    m32.m256i_u64[i] = (m32.m256i_u64[i] >> (lo & 8)) | m32.m256i_u64[i + 1] << (64 - (lo & 8));
+                    m32.m256i_u64[i] = (m32.m256i_u64[i] >> (lo & 7)) | m32.m256i_u64[i + 1] << (64 - (lo & 7));
                 }
             }
             if (m_kind == REAL) {
@@ -450,10 +450,10 @@ public:
         }
         else {
             __m256i m32 = GET32(&this->pack._i8[lo >> 3]);
-            if (lo % 8) {
+            if (lo & 7) {
                 UChar bytes_n = size >> 6;
                 for (int i = 0; i <= bytes_n; i++) {
-                    m32.m256i_u64[i] = (m32.m256i_u64[i] >> (lo & 8)) | m32.m256i_u64[i + 1] << (64 - (lo & 8));
+                    m32.m256i_u64[i] = (m32.m256i_u64[i] >> (lo & 7)) | m32.m256i_u64[i + 1] << (64 - (lo & 7));
                 }
             }
             if (m_kind == REAL) {

@@ -903,6 +903,7 @@ bkp_pass:
 				case Ijk_Sys_int210:   
 				case Ijk_Sys_sysenter:
 				default:
+                    if (!Ijk_call_back) { status = Death; goto EXIT; }
 					status = Ijk_call_back(this, irsb->jumpkind);
 					if (status != Running) {
 						goto EXIT;

@@ -103,11 +103,10 @@ def _Ijk_Server(StateObj, ijk_kind_value):
         sys.exit()
 
 def _State_Fork(father_obj):
-    pState = cState2pState(father_obj)
-    return State(pState)
+    return State(father_obj)
 
 class State(object):
-    def __init__(self):
+    def __init__(self, father_obj = None):
         self.State_obj = None
         self.guest_start_ep = None
         self.guest_start = None
@@ -116,6 +115,7 @@ class State(object):
         self.solver = None
         self.arch = None
         self.branch = None
+        self.f_state = father_obj
 
     def init(self, _State_obj_types):
         self.State_obj = _State_obj_types
@@ -340,7 +340,7 @@ class State(object):
         self.refresh()
 
     def add(self, Z3assert, ToF):
-        EngineLib.state_add_assert(self.State_obj, Z3assert.ast, ToF)
+        EngineLib.TB_state_add_assert(self.State_obj, Z3assert.ast, ToF)
 
     def __getattr__(self, name):
         global Guest_Arch
@@ -412,16 +412,17 @@ def TopState(file_name=b'./TriggerBug.xml', need_record=False, oep=0, Ijk_unsupp
         file_name = bytes(file_name, encoding='utf-8')
     if(Ijk_unsupport_call):
         Ijk_hook_call=None
+    IjkFuns = get_IjkFuns()
     for _ijkoffset in IRJumpKindNmae:
         ijkname = IRJumpKindNmae[_ijkoffset]
-        IjkFuns = get_IjkFuns()
         if Ijk_hook_call:
             _IRJumpKind[_ijkoffset] = Ijk_hook_call
         else:
-            if ijkname in IjkFuns:
-                _IRJumpKind[_ijkoffset] = IjkFuns[ijkname]
-            else:
-                _IRJumpKind[_ijkoffset] = Ijk_unsupport_call
+            if(IjkFuns):
+                if ijkname in IjkFuns:
+                    _IRJumpKind[_ijkoffset] = IjkFuns[ijkname]
+                else:
+                    _IRJumpKind[_ijkoffset] = Ijk_unsupport_call
     _Ijk_Server_cb = ctypes.cast(ijk_call_cb_ctypes(_Ijk_Server), ijk_call_cb_ctypes)
     _State_Fork_cb = ctypes.cast(Super_cb_ctypes(_State_Fork), Super_cb_ctypes)
     state = State()

@@ -32,6 +32,12 @@
    used to endorse or promote products derived from this software
    without prior written permission.
 */
+#include "Engine/engine.hpp"
+#include "Engine/SimulationEngine/Variable.hpp"
+#include "Engine/SimulationEngine/Register.hpp"
+#include "Engine/SimulationEngine/memory.hpp"
+#include "Engine/StateClass/State_class_CD.hpp"
+#include "Engine/Z3_Target_Call/Guest_Helper.hpp"
 extern "C" {
 
 #include "libvex_basictypes.h"
@@ -2733,21 +2739,21 @@ ULong x86g_calculate_mmx_psadbw ( ULong xx, ULong yy )
 /*---------------------------------------------------------------*/
 
 static inline 
-UInt get_segdescr_base ( VexGuestX86SegDescr* ent )
+Vns get_segdescr_base (Regs::X86SegDescr& ent )
 {
-   UInt lo  = 0xFFFF & (UInt)ent->LdtEnt.Bits.BaseLow;
-   UInt mid =   0xFF & (UInt)ent->LdtEnt.Bits.BaseMid;
-   UInt hi  =   0xFF & (UInt)ent->LdtEnt.Bits.BaseHi;
-   return (hi << 24) | (mid << 16) | lo;
+   Vns lo  =  ent.LdtEnt.Bits.BaseLow;
+   Vns mid = ent.LdtEnt.Bits.BaseMid;
+   Vns hi = ent.LdtEnt.Bits.BaseHi;
+   return (hi << 24) | (mid << 16) | lo.zext(16);
 }
 
 static inline
-UInt get_segdescr_limit ( VexGuestX86SegDescr* ent )
+Vns get_segdescr_limit (Regs::X86SegDescr& ent )
 {
-    UInt lo    = 0xFFFF & (UInt)ent->LdtEnt.Bits.LimitLow;
-    UInt hi    =    0xF & (UInt)ent->LdtEnt.Bits.LimitHi;
-    UInt limit = (hi << 16) | lo;
-    if (ent->LdtEnt.Bits.Granularity) 
+    Vns lo    = ent.LdtEnt.Bits.LimitLow;
+    Vns hi    = ent.LdtEnt.Bits.LimitHi;
+    Vns limit = (hi << 16) | lo.zext(16);
+    if (ent.LdtEnt.Bits.Granularity) 
        limit = (limit << 12) | 0xFFF;
     return limit;
 }
@@ -2756,6 +2762,8 @@ UInt get_segdescr_limit ( VexGuestX86SegDescr* ent )
 ULong x86g_use_seg_selector ( HWord ldt, HWord gdt,
                               UInt seg_selector, UInt virtual_addr )
 {
+   State *state = current_state();
+
    UInt tiBit, base, limit;
    VexGuestX86SegDescr* the_descrs;
 
@@ -2799,9 +2807,9 @@ ULong x86g_use_seg_selector ( HWord ldt, HWord gdt,
          goto bad;
 
       the_descrs = (VexGuestX86SegDescr*)gdt;
-      base  = get_segdescr_base (&the_descrs[seg_selector]);
-      limit = get_segdescr_limit(&the_descrs[seg_selector]);
-
+      Regs::X86SegDescr tab(*state, &the_descrs[seg_selector]);
+      base  = get_segdescr_base (tab);
+      limit = get_segdescr_limit(tab);
    } else {
 
       /* All the same stuff, except for the LDT. */
@@ -2812,8 +2820,9 @@ ULong x86g_use_seg_selector ( HWord ldt, HWord gdt,
          goto bad;
 
       the_descrs = (VexGuestX86SegDescr*)ldt;
-      base  = get_segdescr_base (&the_descrs[seg_selector]);
-      limit = get_segdescr_limit(&the_descrs[seg_selector]);
+      Regs::X86SegDescr tab(*state, &the_descrs[seg_selector]);
+      base  = get_segdescr_base (tab);
+      limit = get_segdescr_limit(tab);
 
    }
 

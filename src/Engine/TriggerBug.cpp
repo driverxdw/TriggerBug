@@ -16,7 +16,7 @@ Revision History:
 #define DLL_EXPORTS
 //#define INIFILENAME "C:\\Users\\bibi\\Desktop\\TriggerBug\\PythonFrontEnd\\TriggerBug-asong.xml"
 #define INIFILENAME "C:/Users/bibi/Desktop/TriggerBug/PythonFrontEnd/TriggerBug-default32.xml"
-
+#define INIFILENAME "C:/Users/bibi/Desktop/TriggerBug/PythonFrontEnd/examples/SCTF/ckm.xml"
 
 #include "engine.hpp"
 #define vpanic(...) printf("%s line %d",__FILE__,__LINE__); vpanic(__VA_ARGS__);
@@ -351,7 +351,18 @@ mem_read_s_def(8, 64, ULong)
 //    return 300;
 //}
 State_Tag avoid_ret(State *s) {
+    Regs::X86 reg(*s);
+    Vns esi = reg.guest_ESI;
+    std::cout << esi << std::endl;
     return Death;
+}
+
+State_Tag avoid_ret2(State *s) {
+    Regs::X86 reg(*s);
+    Vns guest_EDX = reg.guest_EDX;
+    Vns guest_EBX = reg.guest_EBX;
+    std::cout << guest_EDX<< guest_EBX << std::endl;
+    return Running;
 }
 
 
@@ -420,39 +431,37 @@ Vns flag_limit(Vns &flag) {
 
 int main() {
 
-    State state(INIFILENAME, NULL, True);
-    avoid_branch_oep.emplace_back(0xce13d2);
+    State state(INIFILENAME, NULL, True); 
 
-    Vns FLAG2 = state.m_ctx.bv_const("buff", 32);
-    Vns dfd1(state.m_ctx,0,32);
-    Vns dfd2(state.m_ctx, FLAG2, 32);
-    Vns gy(state.m_ctx,Z3_mk_bvsub(dfd1, dfd1, dfd2), 32);
-
+    helper::UChar_ fgb(state.mem, 0x76FB6000);
+    *fgb = 0xc3;
 
     //State state(INIFILENAME, 0x10912EA, True);
 
     //Regs::AMD64 reg(state);
-    auto eax = state.regs.Iex_Get<Ity_I32>(8);
+    Regs::X86 reg(state);
+    auto eax = reg.guest_EAX;
 
-    for (int i = 0; i < 16; i++) {
+     for (int i = 0; i < 16; i++) {
         char buff[20];
         sprintf_s(buff, sizeof(buff), "flag%d", i);
         Vns FLAG = state.m_ctx.bv_const(buff, 8);
-        state.mem.Ist_Store(eax+i, FLAG);
+        state.mem.Ist_Store(eax + i , FLAG);
 
-        auto ao2 = FLAG > 31 && FLAG < 128;
+        auto ao2 = FLAG >=30 && FLAG < 128;
         state.add_assert( ao2, True);
 
-
+        
         //state.add_assert(FLAG < 128, True);
 
         //state.add_assert(flag_limit(FLAG), True);
     }
 
-    TB_hook_add(&state, 0xCE13E0, success_ret);
-    TB_hook_add(&state, 0x0CE13D2, avoid_ret);
-    TB_hook_add(&state, 0x0CE13FE, avoid_ret);
-    
+    TB_hook_add(&state, 0x040272B, success_ret);
+    TB_hook_add(&state, 0x00402726, avoid_ret);
+    TB_hook_add(&state, 0x0402673, avoid_ret2);
+
+    /*
     //TB_hook_add(&state, 0x0CE13EA, inceax);
     
 

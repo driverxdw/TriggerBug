@@ -204,17 +204,21 @@
 static VexEndness host_endness;
 
 /* Pointer to the guest code area. */
-static const UChar* guest_code;
+static const UChar* guest_code[MAX_THREADS];
 
 /* The guest address corresponding to guest_code[0]. */
-static Addr64 guest_CIA_bbstart;
+static Addr64 guest_CIA_bbstart[MAX_THREADS];
 
 /* The guest address for the instruction currently being
    translated. */
-static Addr64 guest_CIA_curr_instr;
+static Addr64 guest_CIA_curr_instr[MAX_THREADS];
 
 /* The IRSB* into which we're generating code. */
-static IRSB* irsb;
+static IRSB* irsb[MAX_THREADS];
+#define irsb irsb[temp_index()]
+#define guest_code guest_code[temp_index()]
+#define guest_CIA_bbstart guest_CIA_bbstart[temp_index()]
+#define guest_CIA_curr_instr guest_CIA_curr_instr[temp_index()]
 
 /* Is our guest binary 32 or 64bit?  Set at each call to
    disInstr_PPC below. */

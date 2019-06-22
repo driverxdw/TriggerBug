@@ -199,17 +199,21 @@ static VexEndness host_endness;
 
 /* Pointer to the guest code area (points to start of BB, not to the
    insn being processed). */
-static const UChar* guest_code;
+static const UChar* guest_code[MAX_THREADS];
 
 /* The guest address corresponding to guest_code[0]. */
-static Addr32 guest_EIP_bbstart;
+static Addr32 guest_EIP_bbstart[MAX_THREADS];
 
 /* The guest address for the instruction currently being
    translated. */
-static Addr32 guest_EIP_curr_instr;
+static Addr32 guest_EIP_curr_instr[MAX_THREADS];
 
 /* The IRSB* into which we're generating code. */
-static IRSB* irsb;
+static IRSB* irsb[MAX_THREADS];
+#define guest_code guest_code[temp_index()]
+#define guest_EIP_bbstart guest_EIP_bbstart[temp_index()]
+#define guest_EIP_curr_instr guest_EIP_curr_instr[temp_index()]
+#define irsb irsb[temp_index()]
 
 
 /*------------------------------------------------------------*/
@@ -8552,6 +8556,7 @@ DisResult disInstr_X86_WRK (
 
    vassert(guest_EIP_bbstart + delta == guest_EIP_curr_instr);
    DIP("\t0x%x:  ", guest_EIP_bbstart+delta);
+continue_trans:
 
    /* Spot "Special" instructions (see comment at top of file). */
    {
@@ -14749,7 +14754,9 @@ DisResult disInstr_X86_WRK (
          break;
 
       default:
-         goto decode_failure;
+          delta--;
+          goto continue_trans;
+         //goto decode_failure;
       }
       break;
    }
@@ -15858,7 +15865,9 @@ DisResult disInstr_X86_WRK (
   
   default:
   decode_failure:
+
    /* All decode failures end up here. */
+
    if (sigill_diag) {
       vex_printf("vex x86->IR: unhandled instruction bytes: "
                  "0x%x 0x%x 0x%x 0x%x\n",
