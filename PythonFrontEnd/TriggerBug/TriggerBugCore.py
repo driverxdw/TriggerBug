@@ -4,10 +4,18 @@ import os
 from .TriggerBugTypes import *
 import pkg_resources
 import builtins
-_lib_src = r"TriggerBug.dll"
+_lib_src = ""
+if builtins.TriggerBug_Mode == 32:
+    _lib_src = r"TriggerBug_32.dll"
+elif builtins.TriggerBug_Mode == 64:
+    _lib_src = r"TriggerBug_64.dll"
+else:
+    assert "error builtins.TriggerBug_Mode"
 _p = None
-if builtins.TriggerBug_Debug:
-    _p=r"C:\Users\bibi\Desktop\TriggerBug\build\src\Engine\Release"
+
+if 'develop_mode' in builtins.__dict__ :
+    _p = r"C:\Users\bibi\Desktop\TriggerBug\build\src\Engine\Release"
+    _lib_src = r"TriggerBug.dll"
 else:
     _p = pkg_resources.resource_filename('TriggerBug','libs')
 _retval = os.getcwd()
@@ -18,7 +26,7 @@ os.chdir(_p)
 try:
     EngineLib = ctypes.CDLL(_lib_src)
 except Exception as e:
-    print(e,'has no %s %s'%(_p,_lib_src))
+    print(e,'has no %s %s'%(_p, _lib_src))
     sys.exit()
 	
 os.chdir(_retval)

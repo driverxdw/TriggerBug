@@ -767,7 +767,7 @@ Exit_guard_true:
 						}
 					}
 					case Ist_NoOp: break;
-					case Ist_IMark: guest_start = s->Ist.IMark.addr; break;
+					case Ist_IMark: guest_start = (ADDR)s->Ist.IMark.addr; break;
 					case Ist_AbiHint:break; //====== AbiHint(t4, 128, 0x400936:I64) ====== call 0xxxxxxx
 					case Ist_PutI: {
 						//PutI(840:8xI8)[t10,-1]
@@ -924,7 +924,9 @@ Isb_next:
 					switch (eval_all(result, solv, next)) {
 					case 0: next.~Vns(); goto EXIT;
 					case 1:
-						Z3_get_numeral_uint64(m_ctx, result[0], &guest_start);
+                        uint64_t u64_Addr;
+						Z3_get_numeral_uint64(m_ctx, result[0], &u64_Addr);
+                        guest_start = u64_Addr;
 						Z3_dec_ref(m_ctx, result[0]);
 						break;
 					default:
@@ -961,6 +963,7 @@ Isb_next:
 	}
 	
 EXIT:
+    unit_lock = true;
 	thread_unregister();
 	for (auto son : branch) {
 		pool->enqueue([son] {

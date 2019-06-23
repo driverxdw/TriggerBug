@@ -209,49 +209,6 @@ static inline void dec_used_ref(PAGE *pt) {
     }
 }
 
-static inline Vns linearGet(PAGE *P, UInt offset, UInt length) {
-
-    if (length >= 8) {
-        return P->unit->Iex_Get(offset, Ity_I64);
-    }
-    else if (length >= 4) {
-        return P->unit->Iex_Get(offset, Ity_I32);
-    }
-    else if (length >= 2) {
-        return P->unit->Iex_Get(offset, Ity_I16);
-    }
-    else {
-        return P->unit->Iex_Get(offset, Ity_I8);
-    }
-}
-
-
-template<memTAG T>
-static inline void linearPut(PAGE *P, UInt offset, UInt length, Vns &data) {
-    UInt plength = length;
-    while (plength != 0) {
-        if (plength >= 8) {
-            P->unit->Ist_Put<T>(offset, data.Split(8, length - plength));
-            plength -= 8;
-            offset += 8;
-        }
-        else if (plength >= 4) {
-            P->unit->Ist_Put<T>(offset, data.Split(4, length - plength));
-            plength -= 4;
-            offset += 4;
-        }
-        else if (plength >= 2) {
-            P->unit->Ist_Put<T>(offset, data.Split(2, length - plength));
-            plength -= 2;
-            offset += 2;
-        }
-        else {
-            P->unit->Ist_Put<T>(offset, data.Split(1, length - plength));
-            plength -= 1;
-            offset += 1;
-        }
-    }
-}
 
 class MEM {
     friend class State;
@@ -577,40 +534,13 @@ public:
                 };
                 return P->unit->Iex_Get<Ity_V256>(offset);
             }
-            default:vpanic("2333333");
+            default:vpanic("error IRType");
             }
         linear_err1:
             {
-                vpanic("2333333");
-                PAGE *nP = getMemPage((Addr64)address + 0x1000);
-
+                PAGE *nP = getMemPage(address + 0x1000);
                 UInt plength = 0x1000 - offset;
-                UInt pIndex = plength;
-                UInt npLength = size - plength;
-                UInt npIndex = npLength;
-
-                Vns result = linearGet(P, offset, pIndex);
-                pIndex -= (result.bitn >> 3);
-                while (pIndex != 0) {
-                    Vns g = linearGet(P, 0x1000 - pIndex, pIndex);
-                    pIndex -= (g.bitn >> 3);
-                    result = g.Concat(result);
-                }
-                if (nP->user == user) {
-                    while (npIndex != 0) {
-                        Vns g = linearGet(P, npLength - npIndex, npIndex);
-                        npIndex -= (g.bitn >> 3);
-                        result = g.Concat(result);
-                    }
-                }
-                else {
-                    while (npIndex != 0) {
-                        Vns g = linearGet(P, npLength - npIndex, npIndex).translate(m_ctx);
-                        npIndex -= (g.bitn >> 3);
-                        result = g.Concat(result);
-                    }
-                }
-                return result;
+                return nP->unit->Iex_Get(0, size - plength).translate(m_ctx).Concat(P->unit->Iex_Get(offset, plength));
             }
         }
         else {
@@ -630,41 +560,14 @@ public:
             case Ity_V128:if (offset >= 0xff1) { size = 16; goto linear_err2; }; return P->unit->Iex_Get<Ity_V128>(offset, m_ctx);
             case 256:
             case Ity_V256:if (offset >= 0xfe1) { size = 32; goto linear_err2; }; return P->unit->Iex_Get<Ity_V256>(offset, m_ctx);
-            default:vpanic("2333333");
+            default:vpanic("error IRType");
             }
 
         linear_err2:
             {
-                vpanic("2333333");
-                PAGE *nP = getMemPage((Addr64)address + 0x1000);
-
+                PAGE *nP = getMemPage(address + 0x1000);
                 UInt plength = 0x1000 - offset;
-                UInt pIndex = plength;
-                UInt npLength = size - plength;
-                UInt npIndex = npLength;
-
-                Vns result = linearGet(P, offset, pIndex).translate(m_ctx);
-                pIndex -= (result.bitn >> 3);
-                while (pIndex != 0) {
-                    Vns g = linearGet(P, 0x1000 - pIndex, pIndex).translate(m_ctx);
-                    pIndex -= (g.bitn >> 3);
-                    result = g.Concat(result);
-                }
-                if (nP->user == user) {
-                    while (npIndex != 0) {
-                        Vns g = linearGet(P, npLength - npIndex, npIndex);
-                        npIndex -= (g.bitn >> 3);
-                        result = g.Concat(result);
-                    }
-                }
-                else {
-                    while (npIndex != 0) {
-                        Vns g = linearGet(P, npLength - npIndex, npIndex).translate(m_ctx);
-                        npIndex -= (g.bitn >> 3);
-                        result = g.Concat(result);
-                    }
-                }
-                return result;
+                return nP->unit->Iex_Get(0, size - plength).translate(m_ctx).Concat(P->unit->Iex_Get(offset, plength, m_ctx));
             }
         }
     }
@@ -776,12 +679,11 @@ public:
         CheckSelf(P, address);
         UShort offset = address & 0xfff;
         if (fastalignD1[sizeof(data) << 3] > 0xFFF - offset) {
-            PAGE *nP = getMemPage((ULong)address + 0x1000);
-            UInt plength = 0x1000 - offset;
-            UInt npLength = sizeof(data) - plength;
-            vpanic("not support");
-            /*linearPut<numreal>(P, offset, plength, data);
-            linearPut<numreal>(nP, 0, npLength, data.Split(npLength, plength));*/
+            PAGE *nP = getMemPage(address + 0x1000);
+            CheckSelf(nP, address + 0x1000);
+            UInt plength = (0x1000 - offset);
+            P->unit->Ist_Put(offset, (void*)&data, plength);
+            nP->unit->Ist_Put(0, ((UChar*)((void*)&data)) + plength, (sizeof(data) - plength));
         }
         else {
             P->unit->Ist_Put(offset, data);
@@ -794,12 +696,17 @@ public:
         CheckSelf(P, address);
         UShort offset = address & 0xfff;
         if (fastalignD1[bitn] > 0xFFF - offset) {
-            PAGE *nP = getMemPage((ULong)address + 0x1000);
-            UInt plength = 0x1000 - offset;
-            UInt npLength = (bitn >> 3) - plength;
-            vpanic("not support");
-            //linearPut<symbolic>(P, offset, plength, data);
-            //linearPut<symbolic>(nP, 0, npLength, data.Split(npLength, plength));
+            PAGE *nP = getMemPage(address + 0x1000);
+            CheckSelf(nP, address + 0x1000);
+            UInt plength = (0x1000 - offset);
+            Z3_ast Low = Z3_mk_extract(m_ctx, (plength << 3) - 1, 0, data);
+            Z3_inc_ref(m_ctx, Low);
+            Z3_ast HI = Z3_mk_extract(m_ctx, bitn - 1, plength << 3, data);
+            Z3_inc_ref(m_ctx, HI);
+            nP->unit->Ist_Put(offset, Low, plength);
+            nP->unit->Ist_Put(0, HI, (bitn >> 3) - plength);
+            Z3_dec_ref(m_ctx, Low);
+            Z3_dec_ref(m_ctx, HI);
         }
         else {
             P->unit->Ist_Put<bitn>(offset, data);

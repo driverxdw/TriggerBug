@@ -444,7 +444,7 @@ public:
         }
     }
 
-
+    // IRType or nbit
     inline Vns Iex_Get(UInt offset, IRType ty) {
         switch (ty) {
 #define lazydef(vectype,nbit)                                \
@@ -466,6 +466,7 @@ public:
     }
 
 
+    // <IRType> or <nbit>
     template<IRType ty>
     inline Vns Iex_Get(UInt offset, Z3_context ctx) {
         switch (ty) {
@@ -475,7 +476,7 @@ public:
         if (symbolic&&compare) {                                                                                        \
             return Vns(ctx, Reg2Ast(nbytes, m_bytes + offset, m_fastindex + offset, m_ast + offset, m_ctx, ctx), nbit,  no_inc {});\
         }else{                                                                                                          \
-            return Vns(ctx, GET##nbytes##(m_bytes + offset));                                                         \
+            return Vns(ctx, GET##nbytes##(m_bytes + offset));                                                           \
         }                                                                            
 
             lazydef(I, 8, 1, GET1(m_fastindex + offset));
@@ -487,7 +488,8 @@ public:
 #undef lazydef
         case Ity_I128:
         case Ity_V128: {
-            if (symbolic && ((GET8(m_fastindex + offset)) || (GET8(m_fastindex + offset + 8)))) {
+            auto fastindex = m_fastindex + offset;
+            if (symbolic && ((GET8(fastindex)) || (GET8(fastindex + 8)))) {
                 auto ast_vector = Reg2Ast(8, m_bytes + offset, m_fastindex + offset, m_ast + offset, m_ctx, ctx);
                 auto n_ast = Reg2Ast(8, m_bytes + offset + 8, m_fastindex + offset + 8, m_ast + offset + 8, m_ctx, ctx);
                 auto new_vector = Z3_mk_concat(m_ctx, n_ast, ast_vector);
@@ -501,7 +503,8 @@ public:
             }
         }
         case Ity_V256: {
-            if (symbolic && ((GET8(m_fastindex + offset)) || (GET8(m_fastindex + offset + 8)) || (GET8(m_fastindex + offset + 16)) || (GET8(m_fastindex + offset + 24)))) {
+            auto fastindex = m_fastindex + offset;
+            if (symbolic && ((GET8(fastindex)) || (GET8(fastindex + 8)) || (GET8(fastindex + 16)) || (GET8(fastindex + 24)))) {
                 auto bytes_p = m_bytes + offset;
                 auto fast_p = m_fastindex + offset;
                 auto ast_p = m_ast + offset;
@@ -524,6 +527,62 @@ public:
         }
     }
 
+    //is slowly 
+    inline Vns Iex_Get(UInt offset, UInt nbytes) {
+        auto fastindex = m_fastindex + offset;
+        auto _nbytes = nbytes;
+        while (_nbytes) {
+            if (_nbytes >= 8) { _nbytes -= 8; if (GET8(fastindex + _nbytes)) { goto has_sym; }; }
+            else if (_nbytes >= 4) { _nbytes -= 4; if (GET4(fastindex + _nbytes)) { goto has_sym; }; }
+            else if (_nbytes >= 2) { _nbytes -= 2; if (GET2(fastindex + _nbytes)) { goto has_sym; }; }
+            else { _nbytes--; if (GET1(fastindex + _nbytes)) { goto has_sym; }; }
+        };
+        return Vns(m_ctx, GET32(m_bytes + offset), nbytes << 3);
+has_sym:
+        auto bytes_p = m_bytes + offset;
+        auto fast_p = m_fastindex + offset;
+        auto ast_p = m_ast + offset;
+        auto ast_vector = Reg2Ast(8, bytes_p, fast_p, ast_p, m_ctx);
+        for (int count = 8; count < nbytes; count += 8) {
+            auto n_ast = Reg2Ast(8, bytes_p + count, fast_p + count, ast_p + count, m_ctx);
+            auto new_vector = Z3_mk_concat(m_ctx, n_ast, ast_vector);
+            Z3_inc_ref(m_ctx, new_vector);
+            Z3_dec_ref(m_ctx, ast_vector);
+            Z3_dec_ref(m_ctx, n_ast);
+            ast_vector = new_vector;
+        }
+        return Vns(m_ctx, ast_vector, nbytes << 3, no_inc{});
+    }
+
+    //is slowly 
+    inline Vns Iex_Get(UInt offset, UInt nbytes, Z3_context ctx) {
+        auto fastindex = m_fastindex + offset;
+        auto _nbytes = nbytes;
+        while (_nbytes) {
+            if (_nbytes >= 8) { _nbytes -= 8; if (GET8(fastindex + _nbytes)) { goto has_sym; }; }
+            else if (_nbytes >= 4) { _nbytes -= 4; if (GET4(fastindex + _nbytes)) { goto has_sym; }; }
+            else if (_nbytes >= 2) { _nbytes -= 2; if (GET2(fastindex + _nbytes)) { goto has_sym; }; }
+            else { _nbytes--; if (GET1(fastindex + _nbytes)) { goto has_sym; }; };
+        }
+        return Vns(ctx, GET32(m_bytes + offset), nbytes << 3);
+    has_sym:
+        auto bytes_p = m_bytes + offset;
+        auto fast_p = m_fastindex + offset;
+        auto ast_p = m_ast + offset;
+        auto ast_vector = Reg2Ast(8, bytes_p, fast_p, ast_p, m_ctx, ctx);
+        for (int count = 8; count < nbytes; count += 8) {
+            auto n_ast = Reg2Ast(8, bytes_p + count, fast_p + count, ast_p + count, m_ctx, ctx);
+            auto new_vector = Z3_mk_concat(ctx, n_ast, ast_vector);
+            Z3_inc_ref(ctx, new_vector);
+            Z3_dec_ref(ctx, ast_vector);
+            Z3_dec_ref(ctx, n_ast);
+            ast_vector = new_vector;
+        }
+        return Vns(ctx, ast_vector, nbytes << 3, no_inc{});
+    }
+
+
+    //ty = (IRType)nbits or IRType
     inline Vns Iex_Get(UInt offset, IRType ty, Z3_context ctx) {
         switch (ty) {
 #define lazydef(vectype,nbit)                                   \
@@ -549,7 +608,7 @@ public:
         if (symbolic) {
             if (GET_from_nbytes(sizeof(DataTy), m_fastindex + offset))
             {
-                clear<sizeof(DataTy)>(offset);
+                clear(offset, sizeof(DataTy));
                 SET_from_nbytes(sizeof(DataTy), m_fastindex + offset, 0);
             }
         }
@@ -563,7 +622,7 @@ inline void Ist_Put(UInt offset, DataTy  data) {                                
         auto fastindex = m_fastindex + offset;                                                                  \
         if ((GET8(fastindex )) || (GET8(fastindex + 8)))                                                        \
         {                                                                                                       \
-            clear<16>(offset);                                                                                  \
+            clear(offset, 16);                                                                                  \
             *(__m128i*)(fastindex) = _mm_setzero_si128();                                                       \
         }                                                                                                       \
     }                                                                                                           \
@@ -577,7 +636,7 @@ inline void Ist_Put(UInt offset, DataTy  data) {                                
         auto fastindex = m_fastindex + offset;                                                                  \
         if ((GET8(fastindex)) || (GET8(fastindex + 8)) || (GET8(fastindex + 16)) || (GET8(fastindex + 24)))     \
         {                                                                                                       \
-            clear<32>(offset);                                                                                  \
+            clear(offset, 32);                                                                                  \
             *(__m256i*)(fastindex) = _mm256_setzero_si256();                                                    \
         }                                                                                                       \
     }                                                                                                           \
@@ -591,16 +650,49 @@ inline void Ist_Put(UInt offset, DataTy  data) {                                
     B32_Ist_Put(__m256);
     B32_Ist_Put(__m256d);
 
+    //  速度稍慢
+    inline void Ist_Put(UInt offset, void* data, UInt nbytes) {
+        if (symbolic) { clear(offset, nbytes); memset(m_fastindex + offset, 0, nbytes); };
+        memcpy(m_bytes + offset, data, nbytes);
+        if (record) {
+            auto _nbytes = nbytes;
+            while (_nbytes) {
+                if (_nbytes >= 8) { _nbytes -= 8; record->write<8>(offset + _nbytes); }
+                else if (_nbytes >= 4) { _nbytes -= 4; record->write<4>(offset + _nbytes); }
+                else if (_nbytes >= 2) { _nbytes -= 2; record->write<2>(offset + _nbytes); }
+                else { _nbytes--; record->write<1>(offset + _nbytes); }
+            }
+        }
+    }
 
 
+    // 速度稍慢
+    inline void Ist_Put(UInt offset, Z3_ast _ast, unsigned int nbytes) {
+        if (!symbolic)
+            symbolic = new Symbolic<maxlength>(m_ctx);
+        clear(offset, nbytes);
+        auto fastindex = m_fastindex + offset;
+        for (int i = 0; i < nbytes; i++) { SET1(fastindex + i, i + 1); };
+        m_ast[offset] = _ast;
+        Z3_inc_ref(m_ctx, _ast);
+        if (record) {
+            auto _nbytes = nbytes;
+            while (_nbytes) {
+                if (_nbytes >= 8) { _nbytes -= 8; record->write<8>(offset + _nbytes); }
+                else if (_nbytes >= 4) { _nbytes -= 4; record->write<4>(offset + _nbytes); }
+                else if (_nbytes >= 2) { _nbytes -= 2; record->write<2>(offset + _nbytes); }
+                else { _nbytes--; record->write<1>(offset + _nbytes); }
+            }
+        }
+    }
 
-    // n_bit
+    // only n_bit 8, 16, 32, 64 ,128 ,256
     template<unsigned int bitn>
     inline void Ist_Put(UInt offset, Z3_ast _ast) {
         if (!symbolic)
             symbolic = new Symbolic<maxlength>(m_ctx);
         if (GET_from_nbytes((bitn >> 3), m_fastindex + offset))
-            clear< (bitn >> 3) >(offset);
+            clear(offset, (bitn >> 3));
         if (bitn == 8)
             SET1(m_fastindex + offset, 0x01);
         else if (bitn == 16)
@@ -609,8 +701,10 @@ inline void Ist_Put(UInt offset, DataTy  data) {                                
             SET4(m_fastindex + offset, 0x04030201);
         else if (bitn == 64)
             SET8(m_fastindex + offset, 0x0807060504030201);
-        else if (bitn == 128)
-            SET16(m_fastindex + offset, _mm_setr_epi64x(0x0807060504030201, 0x100f0e0d0c0b0a09));
+        else if (bitn == 128){
+            SET8(m_fastindex + offset, 0x0807060504030201);
+            SET8(m_fastindex + offset + 8, 0x100f0e0d0c0b0a09);
+        }
         else if (bitn == 256)
             SET32(m_fastindex + offset, _mm256_setr_epi64x(0x0807060504030201, 0x100f0e0d0c0b0a09, 0x1817161514131211, 0x201f1e1d1c1b1a19));
         else {
@@ -650,8 +744,7 @@ inline void Ist_Put(UInt offset, DataTy  data) {                                
         }
     }
 
-    template<int LEN>
-    inline void clear(UInt org_offset) {
+    inline void clear(UInt org_offset, Int LEN) {
         Char length = LEN;
         auto fastR = m_fastindex[org_offset + length] - 1;
         if (fastR > 0) {

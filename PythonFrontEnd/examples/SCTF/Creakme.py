@@ -1,7 +1,8 @@
 #coding:utf-8
 import archinfo
 import builtins
-builtins.TriggerBug_Debug = True
+builtins.develop_mode = True
+builtins.TriggerBug_Mode = 32
 import TriggerBug
 from TriggerBug.z3  import *
 

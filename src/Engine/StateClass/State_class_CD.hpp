@@ -49,8 +49,8 @@ extern Super		pState_fork;
 
 class State {
 private:
-	Addr64 guest_start_ep;
-	Addr64 guest_start;
+    ADDR guest_start_ep;
+    ADDR guest_start;
 	void *VexGuestARCHState;
 
 public:

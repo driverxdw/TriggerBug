@@ -10,7 +10,7 @@ Revision History:
 --*/
 #define HOSTARCH VexArchAMD64
 
-//#define GUEST_IS_64 
+#define GUEST_IS_64 
 
 //#undef _DEBUG
 #define DLL_EXPORTS
