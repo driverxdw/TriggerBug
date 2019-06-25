@@ -6,5 +6,12 @@ message(${CMAKE_SOURCE_DIR})
 
 set(BUILD_PYTHON_BINDINGS "ON")
 
+
+
+
+
+set_target_properties(TriggerBug PROPERTIES COMPILE_FLAGS "/openmp" )#yes
+set_target_properties(TriggerBug PROPERTIES COMPILE_FLAGS "/Qopenmp" )#yes
+
 lp 项目注意设置cplus 11 & enable openmp
 ;

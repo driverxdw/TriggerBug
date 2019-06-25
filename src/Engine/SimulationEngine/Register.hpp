@@ -1,4 +1,14 @@
 #pragma once
+/*++
+Copyright (c) 2019 Microsoft Corporation
+Module Name:
+    Reister.class: 
+Abstract:
+    API list;
+Author:
+    WXC 2019-05-31.
+Revision History:
+--*/
 #ifndef REGISTER_HL_CD
 #define REGISTER_HL_CD
 #define REGISTER_LEN 1000
@@ -751,7 +761,7 @@ inline void Ist_Put(UInt offset, DataTy  data) {                                
             auto index = org_offset + length - fastR;
             auto sort_size = Z3_get_bv_sort_size(m_ctx, Z3_get_sort(m_ctx, m_ast[index]));
 
-            register auto AstR = Z3_mk_extract(m_ctx, sort_size - 1, (fastR << 3), m_ast[index]);
+            auto AstR = Z3_mk_extract(m_ctx, sort_size - 1, (fastR << 3), m_ast[index]);
             Z3_inc_ref(m_ctx, AstR);
             m_ast[org_offset + length] = AstR;
             SETFAST(m_fastindex + org_offset + length, (sort_size >> 3) - fastR);

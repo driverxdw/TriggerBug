@@ -312,6 +312,13 @@ void model::cleanup_interp(top_sort& ts, func_decl* f) {
         expr_ref e2 = cleanup_expr(ts, e1, pid);
         if (e1 != e2) 
             fi->set_else(e2);
+        for (auto& fe : *fi) {
+            expr_ref e2 = cleanup_expr(ts, fe->get_result(), pid);
+            if (e2 != fe->get_result()) {
+                fi->insert_entry(fe->get_args(), e2);
+            }
+        }
+
     }
 }
 
@@ -326,6 +333,9 @@ void model::collect_occs(top_sort& ts, func_decl* f) {
             e = fi->get_else();
             if (e != nullptr)
                collect_occs(ts, e);
+            for (auto const& fe : *fi) {
+                collect_occs(ts, fe->get_result());
+            }
         }
     }
 }
@@ -401,15 +411,25 @@ expr_ref model::cleanup_expr(top_sort& ts, expr* e, unsigned current_partition) 
                 continue;
             }
             fi = nullptr;
+            new_t = nullptr;
+            sort_ref_vector domain(m);
             if (autil.is_as_array(a)) {
                 func_decl* f = autil.get_as_array_func_decl(a);
                 // only expand auxiliary definitions that occur once.
                 if (can_inline_def(ts, f)) {
                     fi = get_func_interp(f);
+                    for (sort* s : *f) {
+                        domain.push_back(s);
+                    }
+                    new_t = fi->get_array_interp(domain);
+                    TRACE("model", tout << "array interpretation:" << new_t << "\n";);
                 }
             }
-            
-            if (fi && fi->get_interp()) {
+
+            if (new_t) {
+                // noop
+            }
+            else if (fi && fi->get_interp()) {
                 f = autil.get_as_array_func_decl(a);
                 expr_ref_vector sargs(m);
                 sort_ref_vector vars(m);
@@ -482,6 +502,10 @@ expr_ref model::operator()(expr* t) {
 
 void model::set_solver(expr_solver* s) {
     m_mev.set_solver(s);
+}
+
+bool model::has_solver() {
+    return m_mev.has_solver();
 }
 
 expr_ref_vector model::operator()(expr_ref_vector const& ts) {

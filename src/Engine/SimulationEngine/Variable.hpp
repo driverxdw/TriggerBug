@@ -319,9 +319,7 @@ public:
             case 64:  snprintf(buff, sizeof(buff), " BV%d( %016llx )", bitn, this->pack.u64); break;
             case 128: snprintf(buff, sizeof(buff), " BV%d( %016llx %016llx )", bitn, this->pack.m128.m128_u64[1], this->pack.m128.m128_u64[0]); break;
             case 256: snprintf(buff, sizeof(buff), " BV%d( %016llx %016llx %016llx %016llx )", bitn, this->pack.m256i.m256i_u64[3], this->pack.m256i.m256i_u64[2], this->pack.m256i.m256i_u64[1], this->pack.m256i.m256i_u64[0]); break;
-            default:
-                vex_printf("\nbitn = 0x%x\n", (UInt)bitn);
-                vpanic("bitn err\n");
+            default:  snprintf(buff, sizeof(buff), " BV%d( %016llx %016llx %016llx %016llx )", bitn, this->pack.m256i.m256i_u64[3], this->pack.m256i.m256i_u64[2], this->pack.m256i.m256i_u64[1], this->pack.m256i.m256i_u64[0]); break;
             }
         }
         else {
@@ -397,16 +395,15 @@ public:
     };
 
     /* bitn  */
-    inline Vns Split(UChar size, UInt low)
-    {
+    inline Vns Split(UChar size, UInt low) {
         if (m_kind == SYMB) {
             return Vns(m_ctx, Z3_mk_extract(m_ctx, low + size - 1, low, m_ast), size);
         }
         else {
             __m256i m32 = GET32(&this->pack._u8[low >> 3]);
             if (low % 8) {
-                UChar bytes_n = (size >> 6);
-                for (int i = 0; i <= bytes_n; i++) {
+                UChar _n = (size >> 6);
+                for (int i = 0; i <= _n; i++) {
                     m32.m256i_u64[i] = (m32.m256i_u64[i] >> (low % 8)) | m32.m256i_u64[i + 1] << (64 - low % 8);
                 }
             }
@@ -420,16 +417,15 @@ public:
     }
 
     template<int hi, int lo>
-    inline Vns extract() const
-    {
+    inline Vns extract() const {
         if (m_kind == SYMB) {
             return Vns(m_ctx, Z3_mk_extract(m_ctx, hi, lo, m_ast), (hi - lo + 1));
         }
         else {
             __m256i m32 = GET32(&this->pack._i8[lo >> 3]);
             if (lo & 7) {
-                UChar bytes_n = (hi - lo + 1) >> 6;
-                for (int i = 0; i <= bytes_n; i++) {
+                UChar _n = (hi - lo + 1) >> 6;
+                for (int i = 0; i <= _n; i++) {
                     m32.m256i_u64[i] = (m32.m256i_u64[i] >> (lo & 7)) | m32.m256i_u64[i + 1] << (64 - (lo & 7));
                 }
             }
@@ -442,8 +438,7 @@ public:
         }
     }
 
-    inline Vns extract(int hi, int lo) const
-    {
+    Vns extract(int hi, int lo) const {
         UShort size = hi - lo + 1;
         if (m_kind == SYMB) {
             return Vns(m_ctx, Z3_mk_extract(m_ctx, hi, lo, m_ast), size);
@@ -451,8 +446,8 @@ public:
         else {
             __m256i m32 = GET32(&this->pack._i8[lo >> 3]);
             if (lo & 7) {
-                UChar bytes_n = size >> 6;
-                for (int i = 0; i <= bytes_n; i++) {
+                UChar _n = size >> 6;
+                for (int i = 0; i <= _n; i++) {
                     m32.m256i_u64[i] = (m32.m256i_u64[i] >> (lo & 7)) | m32.m256i_u64[i + 1] << (64 - (lo & 7));
                 }
             }
@@ -465,35 +460,36 @@ public:
         }
     }
 
-    inline Vns Concat(Vns & low) const
-    {
+
+    Vns Concat(Vns & low) const {
         vassert((low.bitn + bitn) <= 256);
         if (real() && low.real()) {
-            __m256i re = low;
-            __m256i m32 = GET32(&this->pack);
-
-            if (low.bitn & 8) {
-                re.m256i_u8[low.bitn >> 3] &= fastMask[8 - low.bitn & 7];
-                re.m256i_u64[low.bitn >> 3] = (re.m256i_u64[low.bitn >> 3] >> (low.bitn & 8)) | m32.m256i_u64[0] << (64 - (low.bitn & 8));
-                UChar bytes_n = bitn >> 6;
-                for (int i = 0; i <= bytes_n; i++) {
-                    m32.m256i_u64[i] = (m32.m256i_u64[i] >> (low.bitn & 8)) | m32.m256i_u64[i + 1] << (64 - (low.bitn & 8));
+            if (low.bitn & 7) {
+                __m256i m32 = low;
+                auto base = ((low.bitn - 1) >> 6);
+                m32.m256i_u64[base] &= fastMask[low.bitn & 63];
+                auto shln = low.bitn & 63;
+                m32.m256i_u64[base] |= this->pack.m256i.m256i_u64[0] << shln;
+                for (int i = 1; i <= ((bitn-1) >> 6); i++) {
+                    m32.m256i_u64[base + i] = (this->pack.m256i.m256i_u64[i] << shln) | (this->pack.m256i.m256i_u64[i - 1] >> (64 - shln));
                 }
-
+                return Vns(m_ctx, m32, low.bitn + bitn);
             }
-            memcpy(&re.m256i_u8[(low.bitn >> 3)], &this->pack, (this->bitn) >> 3);
-            return Vns(m_ctx, re, low.bitn + bitn);
+            else {
+                __m256i re = low;
+                memcpy(&re.m256i_u8[(low.bitn >> 3)], &this->pack, (this->bitn) >> 3);
+                return Vns(m_ctx, re, low.bitn + bitn);
+            }
         }
         else {
             return Vns(m_ctx, Z3_mk_concat(m_ctx, *this, low), low.bitn + bitn);
         }
     }
 
-    inline Vns zext(int i)const {
+    inline Vns zext(int i) const {
         if (i < 0)
             return extract(bitn + i - 1, 0);
         if (m_kind == SYMB) {
-
             return Vns(m_ctx, Z3_mk_zero_ext(m_ctx, i, m_ast), bitn + i);
         }
         auto m32 = GET32(&this->pack);

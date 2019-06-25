@@ -1,5 +1,5 @@
 ﻿/*++
-Copyright (c) 2017 Microsoft Corporation
+Copyright (c) 2019 Microsoft Corporation
 Module Name:
     TriggerBug.cpp: 
 Abstract:
@@ -10,7 +10,7 @@ Revision History:
 --*/
 #define HOSTARCH VexArchAMD64
 
-#define GUEST_IS_64 
+//#define GUEST_IS_64 
 
 //#undef _DEBUG
 #define DLL_EXPORTS
@@ -26,18 +26,120 @@ Revision History:
 #include "SimulationEngine/Variable.hpp"
 #include "SimulationEngine/Register.hpp"
 #include "SimulationEngine/memory.hpp"
-#include "StateClass/State_class_CD.hpp"
+#include "SimulationEngine/State_class_CD.hpp"
 #include "Z3_Target_Call/Guest_Helper.hpp"
-#include "StateClass/State_class.hpp"
+#include "SimulationEngine/State_class.hpp"
 
 unsigned int    global_user;
 std::mutex      global_user_mutex;
-std::vector<Addr64> avoid_branch_oep;
+LARGE_INTEGER   freq_global = { 0 };
+LARGE_INTEGER   beginPerformanceCount_global = { 0 };
+LARGE_INTEGER   closePerformanceCount_global = { 0 };
 
 
 unsigned char * _n_page_mem(void *pap) {
     return ((State*)(((Pap*)(pap))->state))->mem.get_next_page(((Pap*)(pap))->guest_addr);
 }
+
+
+std::string replace(const char* pszSrc, const char* pszOld, const char* pszNew)
+{
+    std::string strContent, strTemp;
+    strContent.assign(pszSrc);
+    std::string::size_type nPos = 0;
+    while (true)
+    {
+        nPos = strContent.find(pszOld, nPos);
+        strTemp = strContent.substr(nPos + strlen(pszOld), strContent.length());
+        if (nPos == std::string::npos)
+        {
+            break;
+        }
+        strContent.replace(nPos, strContent.length(), pszNew);
+        strContent.append(strTemp);
+        nPos += strlen(pszNew) - strlen(pszOld) + 1;
+    }
+    return strContent;
+}
+
+//bool branch_check_avoid(ADDR _addr) {
+//    for (auto )
+//    return avoid_branch_oep.(_addr) == avoid_branch_oep.end();
+//
+//}
+
+inline unsigned int assumptions_check(solver& solv, int n_assumptions, Z3_ast *assumptions) {
+    std::vector<Z3_model> mv;
+    mv.reserve(20);
+    register Z3_context ctx = solv.ctx();
+    Z3_lbool b;
+    try {
+        b = Z3_solver_check_assumptions(ctx, solv, n_assumptions, assumptions);
+    }
+    catch (...) {
+        Z3_error_code e = Z3_get_error_code(ctx);
+        if (e != Z3_OK)
+            throw (Z3_get_error_msg(ctx, e));
+        throw e;
+    }
+    return b;
+}
+
+inline unsigned int eval_all(std::vector<Z3_ast>& result, solver& solv, Z3_ast nia) {
+    //std::cout << nia << std::endl;
+    //std::cout << state.solv.assertions() << std::endl;
+    result.reserve(20);
+    solv.push();
+    std::vector<Z3_model> mv;
+    mv.reserve(20);
+    register Z3_context ctx = solv.ctx();
+    for (int nway = 0; ; nway++) {
+        Z3_lbool b;
+        try {
+            b = Z3_solver_check(ctx, solv);
+        }
+        catch (...) {
+            Z3_error_code e = Z3_get_error_code(ctx);
+            if (e != Z3_OK)
+                throw (Z3_get_error_msg(ctx, e));
+            throw e;
+        }
+        if (b == Z3_L_TRUE) {
+            Z3_model m_model = Z3_solver_get_model(ctx, solv);
+            Z3_model_inc_ref(ctx, m_model);
+            mv.emplace_back(m_model);
+            Z3_ast r = 0;
+            bool status = Z3_model_eval(ctx, m_model, nia, /*model_completion*/false, &r);
+            Z3_inc_ref(ctx, r);
+            result.emplace_back(r);
+            Z3_ast_kind rkind = Z3_get_ast_kind(ctx, r);
+            if (rkind != Z3_NUMERAL_AST) {
+                std::cout << rkind << Z3_ast_to_string(ctx, nia) << std::endl;
+                std::cout << solv.assertions() << std::endl;
+                vassert(0);
+            }
+            Z3_ast eq = Z3_mk_eq(ctx, nia, r);
+            Z3_inc_ref(ctx, eq);
+            Z3_ast neq = Z3_mk_not(ctx, eq);
+            Z3_inc_ref(ctx, neq);
+            Z3_solver_assert(ctx, solv, neq);
+            Z3_dec_ref(ctx, eq);
+            Z3_dec_ref(ctx, neq);
+        }
+        else {
+#if defined(OPSTR)
+            //std::cout << "     sizeof symbolic : " << result.size() ;
+            for (auto s : result) std::cout << ", " << Z3_ast_to_string(ctx, s);
+#endif
+            solv.pop();
+            for (auto m : mv) Z3_model_dec_ref(ctx, m);
+
+            return result.size();
+        }
+    }
+}
+
+
 
 #define pyAndC_Def(type)                                                        \
 template<class T,class toTy>                                                    \
@@ -140,11 +242,8 @@ extern "C"
 
 
 
-LARGE_INTEGER   freq_global = { 0 };
-LARGE_INTEGER   beginPerformanceCount_global = { 0 };
-LARGE_INTEGER   closePerformanceCount_global = { 0 };
 
-State *        TB_top_state(
+State *     TB_top_state(
     PyObject *base ,
     Super superState_cb, 
     State_Tag(*func_cb)(State *, IRJumpKind),
@@ -291,49 +390,6 @@ mem_read_s_def(8, 64, ULong)
 
 
 
-//
-//
-//int nasj(State *s) {
-//    char buff[20];
-//    auto rax = s->regs.Iex_Get(16, Ity_I64);
-//    auto rsi = s->regs.Iex_Get(64, Ity_I64);
-//    ULong max = 38;
-//    if ((ULong)rax == 0) {
-//        for (int ncouu = 0; ncouu < max; ncouu++) {
-//            sprintf_s(buff, sizeof(buff), "flag%d", ncouu);
-//            auto sym = s->m_ctx.bv_const(buff, 8);
-//            s->mem.Ist_Store<numreal, symbolic>(Vns((ULong)rsi + ncouu, *s, 64), Vns(*s, sym, 8));
-//            s->add_assert(sym < 125, True);
-//            s->add_assert(sym > 30, True);
-//            s->add_assert(sym != 32, True);
-//        }
-//        s->mem.Ist_Store<numreal, numreal>(Vns((ULong)rsi + max, *s, 64), Vns((UShort)0x000A,*s, 8));
-//        s->regs.Ist_Put(16, Vns(max+1, *s, 64));
-//
-//        s->solv.push();
-//
-//        if (s->solv.check() == sat) {
-//            vex_printf("sat");
-//            auto m = s->solv.get_model();
-//            std::cout << m << std::endl;
-//            std::cout << s->solv.assertions() << std::endl;
-//        }
-//        else {
-//            vex_printf("unsat??????????\n\n");
-//        }
-//
-//        s->solv.pop();
-//
-//
-//        return Running;
-//    }
-//    else if ((ULong)rax == 5) {
-//        return Running;
-//    }
-//    else {
-//        return Death;
-//    }
-//    
 //}
 //int eee(State *s) {
 //    s->solv.push();
@@ -389,9 +445,6 @@ State_Tag success_ret(State *s) {
 
 
     s->solv.pop();
-
-    
-
     s->solv.push();
     for (int i = 0; i <= 16; i++) {
         auto al = s->mem.Iex_Load<Ity_I8>(esp + 92 + i);
@@ -429,14 +482,17 @@ Vns flag_limit(Vns &flag) {
 }
 
 
+#include "example.hpp"
+
+
+
 int main() {
 
-    State state(INIFILENAME, NULL, True); 
+    State state(INIFILENAME, NULL, True);
+    /*helper::UChar_ fgb(state.mem, 0x76FB6000);
+    *fgb = 0xc3;*/
+    //testz3();
 
-    helper::UChar_ fgb(state.mem, 0x76FB6000);
-    *fgb = 0xc3;
-
-    //State state(INIFILENAME, 0x10912EA, True);
 
     //Regs::AMD64 reg(state);
     Regs::X86 reg(state);
@@ -445,7 +501,7 @@ int main() {
      for (int i = 0; i < 16; i++) {
         char buff[20];
         sprintf_s(buff, sizeof(buff), "flag%d", i);
-        Vns FLAG = state.m_ctx.bv_const(buff, 8);
+        Vns FLAG = ((context&)state).bv_const(buff, 8);
         state.mem.Ist_Store(eax + i , FLAG);
 
         auto ao2 = FLAG >=30 && FLAG < 128;

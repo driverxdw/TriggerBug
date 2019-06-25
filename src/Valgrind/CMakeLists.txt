@@ -8,6 +8,9 @@ cmake_minimum_required (VERSION 3.9)
 aux_source_directory(. DIR_Valgrind_SRCS)
 project(Valgrind CXX)
 
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
 INCLUDE_DIRECTORIES("priv/")
 INCLUDE_DIRECTORIES("pub/")
 INCLUDE_DIRECTORIES("${CMAKE_SOURCE_DIR}/src")

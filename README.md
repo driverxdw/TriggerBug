@@ -6,7 +6,7 @@ The C++ Dynamic symbolic executor like angr.
 The engine was developed to solve some of angr's more intractable problems.
 
 examples的exp还没写。 
-目前还不建议深入了解该工具，接口还没写完整，但是对付一般的逆向题的还是很给力的。
+目前还不建议深入了解该工具，接口还没写完整。
 
 最近做题发现现代复杂加密算法的循环加密，导致表达式产生的时间指数级增长，开始着手分级简化表达式，回溯控制流求解进而解决这个问题，ing.....。
 
@@ -19,7 +19,6 @@ examples的exp还没写。
 |language| -----c/c++ ----\|  \| -python(slowly)-| c++/c(Fast) |
 |translator| -----qemu ----\|  \| -valgrind(Single)-|  valgrind(Multi) |
 |solve thread|Single thread|Multi-threaded|
-|thread of emu process|Single thread|Multi-threaded|
 |compress state method|semi-automatic|manual|
 |guest arch|Common arch|AMD64/X86|
 |binary load|python module:cle(Incomplete loading)slowly|(python)memdump from ida(1:1 Fully symbolic loading)fast|

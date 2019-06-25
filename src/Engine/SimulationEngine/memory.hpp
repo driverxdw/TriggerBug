@@ -1,4 +1,17 @@
-﻿#ifndef MEMORY_DEFS_H
+﻿/*++
+Copyright (c) 2019 Microsoft Corporation
+Module Name:
+    Memory.class:
+Abstract:
+    Address mapping technique;
+    Copy-on-Write;
+    Fork technology;
+    符号地址存取;
+Author:
+    WXC 2019-05-31.
+Revision History:
+--*/
+#ifndef MEMORY_DEFS_H
 #define MEMORY_DEFS_H
 
 
@@ -195,17 +208,19 @@ static inline void inc_used_ref(PAGE *pt) {
 }
 
 
-static inline void dec_used_ref(PAGE *pt) {
+static inline int dec_used_ref(PAGE *pt) {
     bool xchgbv = false;
     while (!xchgbv) {
         __asm__ __volatile("xchgb %b0,%1":"=r"(xchgbv) : "m"(pt->unit_mutex), "0"(xchgbv) : "memory");
     }
     if (--pt->used_point) {
         pt->unit_mutex = true;
+        return True;
     }else{
         if (pt->unit)
             delete pt->unit;
         delete pt;
+        return False;
     }
 }
 
@@ -245,6 +260,7 @@ public:
 
     inline ~MEM() {
         PML4T *CR3_point = *CR3;
+        //  遍历双向链表
         LCODEDEF5(LSTRUCT2, pdpt_point, free_pdpt_point, CR3_point, i1,
             LCODEDEF5(LSTRUCT3, pdt_point, free_pdt_point, pdpt_point, i2,
                 LCODEDEF5(LSTRUCT4, pt_point, free_pt_point, pdt_point, i3,

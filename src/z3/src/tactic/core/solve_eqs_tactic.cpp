@@ -599,12 +599,15 @@ class solve_eqs_tactic : public tactic {
             hoist_rewriter_star rw(m());
             th_rewriter thrw(m());
             expr_ref tmp(m()), tmp2(m());
+            TRACE("solve_eqs", g.display(tout););
             for (unsigned idx = 0; idx < size; idx++) {
                 checkpoint();
+                if (g.is_decided_unsat()) break;
                 expr* f = g.form(idx);
                 thrw(f, tmp);
                 rw(tmp, tmp2);
-                g.update(idx, tmp2);
+                TRACE("solve_eqs", tout << mk_pp(f, m()) << " " << tmp2 << "\n";);
+                g.update(idx, tmp2, g.pr(idx), g.dep(idx));
             }
             
         }
@@ -774,8 +777,7 @@ class solve_eqs_tactic : public tactic {
                 m_num_steps += m_r->get_num_steps() + 1;
                 if (m_produce_proofs)
                     new_pr = m().mk_transitivity(pr, new_pr);
-                if (m_produce_unsat_cores)
-                    new_dep = m().mk_join(dep, new_dep);
+                new_dep = m().mk_join(dep, new_dep);
                 m_norm_subst->insert(v, new_def, new_pr, new_dep);
                 // we updated the substituting, but we don't need to reset m_r
                 // because all cached values there do not depend on v.

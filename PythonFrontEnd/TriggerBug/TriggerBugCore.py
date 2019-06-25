@@ -10,12 +10,12 @@ if builtins.TriggerBug_Mode == 32:
 elif builtins.TriggerBug_Mode == 64:
     _lib_src = r"TriggerBug_64.dll"
 else:
-    assert "error builtins.TriggerBug_Mode"
+    raise("error builtins.TriggerBug_Mode")
 _p = None
 
 if 'develop_mode' in builtins.__dict__ :
-    _p = r"C:\Users\bibi\Desktop\TriggerBug\build\src\Engine\Release"
-    _lib_src = r"TriggerBug.dll"
+    _p = r'C:\Users\bibi\Desktop\TriggerBug\build\src\Engine\Release'+'\\'
+    _lib_src = "TriggerBug.dll"
 else:
     _p = pkg_resources.resource_filename('TriggerBug','libs')
 _retval = os.getcwd()

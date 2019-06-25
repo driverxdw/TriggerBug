@@ -20,6 +20,8 @@ for i in range(16):
     top_state.add(z3.And(z3.UGT(k, 29), z3.ULE(k, 128) ,top_state.ctx), True)
     top_state.mem_w(top_state.eax+i, k,1)
 
+
+
 top_state.go()
 top_state.wait()
 print(top_state)

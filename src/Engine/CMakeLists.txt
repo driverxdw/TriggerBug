@@ -10,7 +10,6 @@ project(TriggerBug CXX)
 
 INCLUDE_DIRECTORIES("functions/")
 INCLUDE_DIRECTORIES("SimulationEngine/")
-INCLUDE_DIRECTORIES("StateClass/")
 INCLUDE_DIRECTORIES("Syscall/")
 INCLUDE_DIRECTORIES("../Valgrind/priv/")
 INCLUDE_DIRECTORIES("../Valgrind/pub/")
@@ -42,5 +41,6 @@ INCLUDE_DIRECTORIES(${TriggerBug_INCLUDE})
 add_subdirectory ("./Z3_Target_Call")
 
 TARGET_LINK_LIBRARIES(TriggerBug libz3 Valgrind Z3_Target_Call tinyxml2)
-
+set_target_properties(TriggerBug PROPERTIES COMPILE_FLAGS "/openmp" )#yes
+set_target_properties(TriggerBug PROPERTIES COMPILE_FLAGS "/Qopenmp" )#yes
 # TODO: 如有需要，请添加测试并安装目标。

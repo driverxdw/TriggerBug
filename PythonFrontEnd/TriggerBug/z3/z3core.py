@@ -8,27 +8,33 @@ from .z3consts import *
 
 _ext = 'dll' if sys.platform in ('win32', 'cygwin') else 'dylib' if sys.platform == 'darwin' else 'so'
 _lib = None
-
+_default_dirs = ['.',
+                 os.path.dirname(os.path.abspath(__file__)),
+                 pkg_resources.resource_filename('z3', 'lib'),
+                 os.path.join(sys.prefix, 'lib'),
+                 None]
 _all_dirs = []
+
 
 if sys.version < '3':
   import __builtin__
-
-  _lib = __builtin__.z3lib  # add it
+  _lib = __builtin__.z3lib                      #add it
   if hasattr(__builtin__, "Z3_LIB_DIRS"):
     _all_dirs = __builtin__.Z3_LIB_DIRS
 else:
   import builtins
-
-  _lib = builtins.z3lib  # add it
+  _lib = builtins.z3lib                         #add it
   if hasattr(builtins, "Z3_LIB_DIRS"):
     _all_dirs = builtins.Z3_LIB_DIRS
+    
 
 for v in ('Z3_LIBRARY_PATH', 'PATH', 'PYTHONPATH'):
   if v in os.environ:
     lp = os.environ[v];
     lds = lp.split(';') if sys.platform in ('win32') else lp.split(':')
     _all_dirs.extend(lds)
+
+_all_dirs.extend(_default_dirs)
 
 _failures = []
 for d in []:
@@ -408,6 +414,8 @@ _lib.Z3_is_string.restype = ctypes.c_bool
 _lib.Z3_is_string.argtypes = [ContextObj, Ast]
 _lib.Z3_get_string.restype = ctypes.c_char_p
 _lib.Z3_get_string.argtypes = [ContextObj, Ast]
+_lib.Z3_get_lstring.restype = ctypes.c_char_p
+_lib.Z3_get_lstring.argtypes = [ContextObj, Ast, ctypes.POINTER(ctypes.c_uint)]
 _lib.Z3_mk_seq_empty.restype = Ast
 _lib.Z3_mk_seq_empty.argtypes = [ContextObj, Sort]
 _lib.Z3_mk_seq_unit.restype = Ast
@@ -933,7 +941,6 @@ _lib.Z3_solver_get_trail.argtypes = [ContextObj, SolverObj]
 _lib.Z3_solver_get_non_units.restype = AstVectorObj
 _lib.Z3_solver_get_non_units.argtypes = [ContextObj, SolverObj]
 _lib.Z3_solver_get_levels.argtypes = [ContextObj, SolverObj, AstVectorObj, ctypes.c_uint, ctypes.POINTER(ctypes.c_uint)]
-_lib.Z3_solver_set_activity.argtypes = [ContextObj, SolverObj, Ast, ctypes.c_double]
 _lib.Z3_solver_check.restype = ctypes.c_int
 _lib.Z3_solver_check.argtypes = [ContextObj, SolverObj]
 _lib.Z3_solver_check_assumptions.restype = ctypes.c_int
@@ -2211,6 +2218,16 @@ def Z3_get_string(a0, a1, _elems=Elementaries(_lib.Z3_get_string)):
 
 def Z3_get_string_bytes(a0, a1, _elems=Elementaries(_lib.Z3_get_string)):
   r = _elems.f(a0, a1)
+  _elems.Check(a0)
+  return r
+
+def Z3_get_lstring(a0, a1, a2, _elems=Elementaries(_lib.Z3_get_lstring)):
+  r = _elems.f(a0, a1, a2)
+  _elems.Check(a0)
+  return _to_pystr(r)
+
+def Z3_get_lstring_bytes(a0, a1, a2, _elems=Elementaries(_lib.Z3_get_lstring)):
+  r = _elems.f(a0, a1, a2)
   _elems.Check(a0)
   return r
 
@@ -3691,10 +3708,6 @@ def Z3_solver_get_levels(a0, a1, a2, a3, a4, _elems=Elementaries(_lib.Z3_solver_
   _elems.f(a0, a1, a2, a3, a4)
   _elems.Check(a0)
 
-def Z3_solver_set_activity(a0, a1, a2, a3, _elems=Elementaries(_lib.Z3_solver_set_activity)):
-  _elems.f(a0, a1, a2, a3)
-  _elems.Check(a0)
-
 def Z3_solver_check(a0, a1, _elems=Elementaries(_lib.Z3_solver_check)):
   r = _elems.f(a0, a1)
   _elems.Check(a0)
@@ -4888,5 +4901,6 @@ def Z3_qe_lite(a0, a1, a2, _elems=Elementaries(_lib.Z3_qe_lite)):
 
 # Clean up
 del _lib
+del _default_dirs
 del _all_dirs
 del _ext
