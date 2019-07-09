@@ -64,6 +64,9 @@ typedef enum :unsigned int {
 }State_Tag;
 
 
+typedef enum :unsigned int {
+    TRMemory,TRRegister
+}Storage;
 
 typedef State_Tag(*CallBack)(State *);
 typedef PyObject *(*Super)(PyObject *);
@@ -72,14 +75,19 @@ typedef struct _Hook {
     UChar original;
 }Hook_struct;
 
-
+typedef struct {
+    Storage kind;
+    ADDR address;
+    ADDR r_offset;
+    IRType ty;
+}Hook_Replace;
 
 #if defined(_DEBUG)||1
 
-#define vassert(expr)                                           \
-  ((void) ((expr) ? 0 :                                            \
-           (vex_assert_fail (#expr,                             \
-                             __FILE__, __LINE__,                \
+#define vassert(xexpr)                                           \
+  ((void) ((xexpr) ? 0 :                                         \
+           (vex_assert_fail (#xexpr,                             \
+                             __FILE__, __LINE__,                 \
                              __FUNCSIG__), 0)))
 #else
 #define vassert(...) 
@@ -159,15 +167,111 @@ inline Z3_ast Z3_mk_neq(Z3_context ctx, Z3_ast a, Z3_ast b) {
 }
 
 extern std::string replace(const char *pszSrc, const char *pszOld, const char *pszNew);
-extern unsigned int eval_all(std::vector<Z3_ast> &result, z3::solver &solv, Z3_ast nia);
+extern int eval_all(std::vector<Z3_ast> &result, z3::solver &solv, Z3_ast nia);
 extern unsigned char * _n_page_mem(void *);
 extern LARGE_INTEGER   freq_global;
 extern LARGE_INTEGER   beginPerformanceCount_global;
 extern LARGE_INTEGER   closePerformanceCount_global;
 extern VexArch guest;
 extern State *_states[MAX_THREADS];
-extern std::vector<Addr64> avoid_branch_oep;
+extern std::vector<ADDR> avoid_branch_oep;
 #define current_state() _states[temp_index()]
+
+
+
+
+
+
+
+typedef enum :unsigned int {
+    IR_eax = 8,
+    IR_ax = 8,
+    IR_al = 8,
+    IR_ah = 9,
+    IR_ecx = 12,
+    IR_cx = 12,
+    IR_cl = 12,
+    IR_ch = 13,
+    IR_edx = 16,
+    IR_dx = 16,
+    IR_dl = 16,
+    IR_dh = 17,
+    IR_ebx = 20,
+    IR_bx = 20,
+    IR_bl = 20,
+    IR_bh = 21,
+    IR_esp = 24,
+    IR_sp = 24,
+    IR_ebp = 28,
+    IR_bp = 28,
+    IR_esi = 32,
+    IR_si = 32,
+    IR_sil = 32,
+    IR_sih = 33,
+    IR_edi = 36,
+    IR_di = 36,
+    IR_dil = 36,
+    IR_dih = 37,
+    IR_cc_op = 40,
+    IR_cc_dep1 = 44,
+    IR_cc_dep2 = 48,
+    IR_cc_ndep = 52,
+    IR_d = 56,
+    IR_dflag = 56,
+    IR_id = 60,
+    IR_idflag = 60,
+    IR_ac = 64,
+    IR_acflag = 64,
+    IR_eip = 68,
+    IR_ip = 68,
+    IR_pc = 68,
+    IR_fpreg = 72,
+    IR_fpu_regs = 72,
+    IR_mm0 = 72,
+    IR_mm1 = 80,
+    IR_mm2 = 88,
+    IR_mm3 = 96,
+    IR_mm4 = 104,
+    IR_mm5 = 112,
+    IR_mm6 = 120,
+    IR_mm7 = 128,
+    IR_fptag = 136,
+    IR_fpu_tags = 136,
+    IR_fpround = 144,
+    IR_fc3210 = 148,
+    IR_ftop = 152,
+    IR_sseround = 156,
+    IR_xmm0 = 160,
+    IR_xmm1 = 176,
+    IR_xmm2 = 192,
+    IR_xmm3 = 208,
+    IR_xmm4 = 224,
+    IR_xmm5 = 240,
+    IR_xmm6 = 256,
+    IR_xmm7 = 272,
+    IR_cs = 288,
+    IR_ds = 290,
+    IR_es = 292,
+    IR_fs = 294,
+    IR_gs = 296,
+    IR_ss = 298,
+    IR_ldt = 304,
+    IR_gdt = 312,
+    IR_emnote = 320,
+    IR_cmstart = 324,
+    IR_cmlen = 328,
+    IR_nraddr = 332,
+    IR_sc_class = 336,
+    IR_ip_at_syscall = 340
+}X86_IR_OFFSET;
+
+
+
+
+
+
+
+
 
 #endif // HEADER_H
 

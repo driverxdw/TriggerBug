@@ -6,6 +6,58 @@ builtins.TriggerBug_Mode = 32
 import TriggerBug
 from TriggerBug.z3  import *
 
+
+#
+#
+# tab= [1,3,54,6,39,34,56,76,59,35,34,54,6,76,8,9,45]
+# def table_index(idx):
+#     res = None
+#     for i,v in enumerate(tab):
+#         if i==0:
+#             res = BitVecVal(tab[0], 8)
+#         else:
+#             res=If(idx==i,BitVecVal(v,8),res)
+#     return res
+#
+# def crypto(a, b):
+#     return table_index(a-4) ^ (b * 3)
+#
+#
+# flag = BitVec("flag", 8)
+# so = Solver()
+# so.add(flag > 1)
+# for i in range(99):
+#     flag = crypto(flag, flag)
+#
+#
+# bck = flag
+# so.push()
+# flag = crypto(flag, flag)
+# so.add(flag < 10)
+# print( so.check() )
+# m = so.model()
+# eflag=m.eval(bck)
+# print (eflag)
+# so.pop()
+#
+#
+#
+# so.push()
+# so.add(bck == 145)
+# so.add(flag < 10)
+# print( so.check() )
+# m = so.model()
+# eflag=m.eval(bck)
+# print (eflag)
+# so.pop()
+
+
+
+
+
+
+
+
 top_state=TriggerBug.TopState(
         file_name=r'./ckm.xml',
         need_record=True,#在需要合并(compress)state时，必须要保证被compress 的state对象的need_record=True，否则会报错，因为need_record=False的state是不会记录子state生命周期中所产生的修改,继而无法合并
@@ -21,6 +73,29 @@ for i in range(16):
     top_state.mem_w(top_state.eax+i, k,1)
 
 
+def chk2(_state):
+    val = _state.ecx
+    if(type(val)==int):
+        print("success    ", val)
+    else:
+        print("success    ", z3.simplify(val))
+    return TriggerBug.Running
+
+def chk3(_state):
+    val = _state.edx
+    if(type(val)==int):
+        print("success    ", val)
+    else:
+        print("success    ", z3.simplify(val))
+    return TriggerBug.Running
+
+#top_state.hook_add(0x401140, chk2)
+top_state.hook_add(0x40114F , chk3)
+
+
+for i in top_state.arch.registers:
+
+    print('IR_{} = {},'.format(i,*top_state.arch.registers[i]))
 
 top_state.go()
 top_state.wait()

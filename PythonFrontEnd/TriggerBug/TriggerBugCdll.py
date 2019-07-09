@@ -9,6 +9,9 @@ def init_engine_api(EngineLib):
 
     EngineLib.TB_state_add_assert.argtypes = [StateObj, z3types.Ast, ctypes.c_char]
 
+    EngineLib.TB_state_cast.argtypes = [StateObj, z3types.Ast]
+    EngineLib.TB_state_cast.restype = z3types.Ast
+
     EngineLib.regs_r_write1.argtypes = [StateObj, ctypes.c_uint16, ctypes.c_uint8]
     EngineLib.regs_r_write2.argtypes = [StateObj, ctypes.c_uint16, ctypes.c_uint16]
     EngineLib.regs_r_write4.argtypes = [StateObj, ctypes.c_uint16, ctypes.c_uint32]

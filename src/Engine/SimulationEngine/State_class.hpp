@@ -1,4 +1,4 @@
-/*++
+ï»¿/*++
 Copyright (c) 2019 Microsoft Corporation
 Module Name:
     Reister.class:
@@ -23,7 +23,8 @@ Revision History:
 
 Vns ir_temp[MAX_THREADS][400];
 ThreadPool *pool = NULL;
-std::hash_map<Addr64, Hook_struct> CallBackDict;
+std::hash_map<ADDR, Hook_struct> CallBackDict;
+std::hash_map<ADDR, std::vector<Hook_Replace>> ReplaceDict;
 tinyxml2::XMLDocument doc;
 VexArch		guest;
 State*		_states[MAX_THREADS];
@@ -53,14 +54,16 @@ bool PassSigSEGV;
 
 State::State(char *filename, Addr64 gse, Bool _need_record, PyObject *_base = NULL) :
 	m_ctx(), 
-	mem(&solv, &m_ctx,need_record),
+	mem(*this, &m_ctx,need_record),
 	regs(m_ctx, need_record), 
-	solv(m_ctx), need_record(_need_record),
+	solv(m_ctx),
+    need_record(_need_record),
 	status(NewState),
 	VexGuestARCHState(NULL),
 	delta(0),
 	base(_base),
-    unit_lock(true)
+    unit_lock(true),
+    replace_const(0)
 {
     pap.state = (void*)(this);
     pap.n_page_mem = _n_page_mem;
@@ -137,7 +140,7 @@ mem_ip:
 
 State::State(State *father_state, Addr64 gse, PyObject *_base = NULL) :
 	m_ctx(),
-	mem(&solv, father_state->mem, &m_ctx, need_record), 
+	mem(*this, father_state->mem, &m_ctx, need_record),
 	guest_start_ep(gse),
 	guest_start(guest_start_ep), 
 	solv(m_ctx, father_state->solv,  z3::solver::translate{}),
@@ -147,7 +150,8 @@ State::State(State *father_state, Addr64 gse, PyObject *_base = NULL) :
 	VexGuestARCHState(NULL),
 	delta(0),
 	base(_base),
-    unit_lock(true)
+    unit_lock(true),
+    replace_const(father_state->replace_const)
 {
     pap.state = (void*)(this);
     pap.n_page_mem = _n_page_mem;
@@ -261,6 +265,28 @@ inline bool State::avoid_check(ADDR oep) {
         }
     }
     return 0;
+}
+
+inline Vns State::get_int_const(UShort nbit) {
+    bool xchgbv = false;
+    while (!xchgbv) {
+        __asm__ __volatile("xchgb %b0,%1":"=r"(xchgbv) : "m"(unit_lock), "0"(xchgbv) : "memory");
+    };
+    auto res = replace_const++;
+    unit_lock = true;
+    char buff[20];
+    sprintf_s(buff, sizeof(buff), "part_%lx_%d",guest_start, res);
+    return  Vns(m_ctx.bv_const(buff, nbit), nbit);
+}
+
+inline Vns State::cast(Vns data) {
+    auto size = from.size();
+    for (int idx = size - 1; idx >= 0; idx--) {
+        Z3_ast t[] = { to[idx] };
+        Z3_ast f[] = { from[idx] };
+        data = Vns(m_ctx, Z3_substitute(m_ctx, data, 1, t, f));
+    }
+    return data;
 }
 
 inline IRSB* State::BB2IR() {
@@ -391,7 +417,7 @@ void State::IR_init() {
 	vc.iropt_unroll_thresh = 0;
 	vc.guest_max_insns = 100;    // max instruction
 	pap.guest_max_insns = 100;
-	vc.guest_chase_thresh = 0;   //²»Ðí×·¸Ï
+	vc.guest_chase_thresh = 0;   //ä¸è®¸è¿½èµ¶
 
 	sscanf(doc_VexControl->FirstChildElement("iropt_register_updates_default")->GetText(), "%x", &vc.iropt_register_updates_default);
 	sscanf(doc_VexControl->FirstChildElement("pxControl")->GetText(), "%x", &pxControl);
@@ -584,7 +610,7 @@ For_Begin_NO_Trans:
 						if (NEED_CHECK)std::cout << ir_temp[t_index][s->Ist.WrTmp.tmp] << std::endl;
 						break;
 					}
-                    case Ist_CAS /*±È½ÏºÍ½»»»*/: {//xchg    rax, [r10]
+                    case Ist_CAS /*æ¯”è¾ƒå’Œäº¤æ¢*/: {//xchg    rax, [r10]
                         bool xchgbv = false;
                         while (!xchgbv) {
                             __asm__ __volatile("xchgb %b0,%1":"=r"(xchgbv) : "m"(unit_lock), "0"(xchgbv) : "memory");
@@ -757,7 +783,7 @@ Exit_guard_true:
 						}
 						break;
 					}
-					case Ist_MBE   /*ÄÚ´æ×ÜÏßÊÂ¼þ£¬fence/ÇëÇó/ÊÍ·Å×ÜÏßËø*/:break;
+					case Ist_MBE   /*å†…å­˜æ€»çº¿äº‹ä»¶ï¼Œfence/è¯·æ±‚/é‡Šæ”¾æ€»çº¿é”*/:break;
 					case Ist_LLSC:
 					default:
 						vex_printf("what ppIRStmt %d\n", s->tag);
@@ -773,6 +799,23 @@ Exit_guard_true:
 				case Ijk_Ret:           break;
 				case Ijk_SigTRAP:		{
 bkp_pass:
+                    auto replace_where = ReplaceDict.lower_bound((ADDR)guest_start);
+                    if (replace_where != ReplaceDict.end()) {
+                        for(auto rep: replace_where->second){
+                            if (rep.kind == TRRegister) {
+                                from.emplace_back(regs.Iex_Get(rep.r_offset, rep.ty));
+                                Vns rep_const = get_int_const(ty2bit(rep.ty));
+                                to.emplace_back(rep_const);
+                                regs.Ist_Put(rep.r_offset, rep_const);
+                            }
+                            else {
+                                from.emplace_back(mem.Iex_Load(rep.r_offset, rep.ty));
+                                Vns rep_const = get_int_const(ty2bit(rep.ty));
+                                to.emplace_back(rep_const);
+                                mem.Ist_Store(rep.r_offset, rep_const);
+                            }
+                        }
+                    }
 					auto _where = CallBackDict.lower_bound((ADDR)guest_start);
 					if (_where != CallBackDict.end()) {
 						if (hook_bkp) {
@@ -782,7 +825,9 @@ bkp_pass:
 						}
 						else {
 							if (!is_first_bkp_pass) {
-								status = (_where->second.cb)(this);//State::delta maybe changed by callback
+                                if (_where->second.cb) {
+                                    status = (_where->second.cb)(this);//State::delta maybe changed by callback
+                                }
 								if (status != Running) {
 									goto EXIT;
 								}

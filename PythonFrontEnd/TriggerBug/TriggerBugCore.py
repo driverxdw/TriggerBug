@@ -33,7 +33,7 @@ os.chdir(_retval)
 
 Super_cb_ctypes = ctypes.CFUNCTYPE(ctypes.py_object, ctypes.py_object)
 ijk_call_cb_ctypes = ctypes.CFUNCTYPE(ctypes.c_uint32, StateObj, ctypes.c_uint32)
-hook_cb_ctypes = ctypes.CFUNCTYPE(ctypes.c_uint32, ctypes.c_void_p)
+hook_cb_ctypes = ctypes.CFUNCTYPE(ctypes.c_uint32, StateObj)
 
 
 EngineLib.TB_Z3_Model_Handle.restype = ctypes.c_void_p

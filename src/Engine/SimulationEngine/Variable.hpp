@@ -146,7 +146,7 @@ public:
 
     inline Vns(context const &ctx, Z3_ast ast, UShort n, no_inc  no) : Vns((Z3_context)ctx, ast, n, no) {};
 
-    inline Vns(expr const &exp, UShort n) : Vns(exp.ctx(), exp, n) {};
+    inline Vns(expr const &exp, UShort n) : Vns(exp.ctx(), (Z3_ast)exp, n) {};
 
     inline Vns(Z3_context ctx, IRConst *con) :
         m_ctx(ctx),

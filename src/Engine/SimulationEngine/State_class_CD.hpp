@@ -32,7 +32,8 @@ typedef Vns (*Z3_Function2)(Vns &, Vns &);
 typedef Vns (*Z3_Function1)(Vns &);
 
 
-extern std::hash_map<Addr64, Hook_struct> CallBackDict;
+extern std::hash_map<ADDR, Hook_struct> CallBackDict;
+extern std::hash_map<ADDR, std::vector<Hook_Replace>> ReplaceDict;
 extern ThreadPool *pool;
 extern void* funcDict(void*);
 extern __m256i m32_fast[33];
@@ -47,6 +48,7 @@ extern Super		pState_fork;
 
 
 
+
 class State {
 private:
     ADDR guest_start_ep;
@@ -57,15 +59,19 @@ public:
 	PyObject *base;
 	z3::context m_ctx;
 	z3::solver solv;
-	std::queue< std::function<void()> > check_stack;
+	//std::queue< std::function<void()> > check_stack;
 	Long delta;
 	bool unit_lock;
+    std::vector<Vns> from;
+    std::vector<Vns> to;
+    
 
 protected:
 	Bool need_record;
 
 private:
 	Pap pap;
+    int replace_const;
 
 	VexTranslateResult res;
 	VexRegisterUpdates pxControl = VexRegUpd_INVALID;
@@ -78,6 +84,7 @@ private:
 
 	std::vector<Vns> asserts;
 	UShort t_index;
+
 
 	inline Bool treeCompress(z3::context &ctx, Addr64 Target_Addr, State_Tag Target_Tag, std::vector<State_Tag> &avoid, ChangeView& change_view, std::hash_map<ULong, Vns> &change_map, std::hash_map<UShort, Vns> &regs_change_map);
 	
@@ -118,6 +125,8 @@ public:
 	inline Vns T_Qop(IROp, IRExpr*, IRExpr*, IRExpr*, IRExpr*);
 	inline Vns ILGop(IRLoadG *lg);
     inline bool avoid_check(ADDR);
+    inline Vns get_int_const(UShort nbit);
+    inline Vns cast(Vns);
 
 	inline operator context&();
 	inline operator Z3_context();

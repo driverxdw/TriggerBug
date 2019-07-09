@@ -38,10 +38,10 @@ inline int ty2length(IRType ty) {
 	switch (ty) {
 	case Ity_INVALID: vex_printf("Ity_INVALID"); break;
 	case Ity_I1:      return 0; 
-	case Ity_I8:      return 1; 
-	case Ity_I16:     return 2; 
-	case Ity_I32:     return 4; 
-	case Ity_I64:     return 8; 
+	case Ity_I8:      return 1;
+	case Ity_I16:     return 2;
+	case Ity_I32:     return 4;
+	case Ity_I64:     return 8;
 	case Ity_I128:    return 16;
 	case Ity_F16:     return 2; 
 	case Ity_F32:     return 4; 
@@ -58,26 +58,33 @@ inline int ty2length(IRType ty) {
 }
 
 inline int ty2bit(IRType ty) {
-	switch (ty) {
-	case Ity_INVALID: vex_printf("Ity_INVALID"); break;
-	case Ity_I1:      return 1   ;
-	case Ity_I8:      return 8   ;
-	case Ity_I16:     return 16  ;
-	case Ity_I32:     return 32  ;
-	case Ity_I64:     return 64  ;
-	case Ity_I128:    return 128 ;
-	case Ity_F16:     return 16  ;
-	case Ity_F32:     return 32  ;
-	case Ity_F64:     return 64  ;
-	case Ity_F128:    return 128 ;
-	case Ity_D32:     return 32  ;
-	case Ity_D64:     return 64  ;
-	case Ity_D128:    return 128 ;
-	case Ity_V128:    return 128 ;
-	case Ity_V256:    return 256 ;
-	default:vpanic("ty2length");
-	}
-	return 0;
+    switch (ty) {
+    case Ity_INVALID: vex_printf("Ity_INVALID"); break;
+    case 1:
+    case Ity_I1:      return 1;
+    case 8:
+    case Ity_I8:      return 8;
+    case 16:
+    case Ity_I16:     return 16;
+    case Ity_F16:     return 16;
+    case 32:
+    case Ity_I32:     return 32;
+    case Ity_F32:     return 32;
+    case Ity_D32:     return 32;
+    case 64:
+    case Ity_I64:     return 64;
+    case Ity_F64:     return 64;
+    case Ity_D64:     return 64;
+    case 128:
+    case Ity_I128:    return 128;
+    case Ity_F128:    return 128;
+    case Ity_D128:    return 128;
+    case Ity_V128:    return 128;
+    case 256:
+    case Ity_V256:    return 256;
+    default:vpanic("ty2length");
+    }
+    return 0;
 }
 
 static z3::sort translateRM(z3::context&m_ctx, IRRoundingMode md) {

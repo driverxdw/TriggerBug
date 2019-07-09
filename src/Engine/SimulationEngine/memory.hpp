@@ -22,6 +22,7 @@ extern std::mutex global_user_mutex;
 
 
 
+
 #define GETPT(address) ((*CR3)->pt[(address) >> 39 & 0x1ff]->pt[(address) >> 30 & 0x1ff]->pt[(address) >> 21 & 0x1ff])
 #define GETPAGE(address) ((*CR3)->pt[(address) >> 39 & 0x1ff]->pt[(address) >> 30 & 0x1ff]->pt[(address) >> 21 & 0x1ff]->pt[(address) >> 12 & 0x1ff])
 #define COPY_SYM(new_page, p_page,index) (new_page)->unit[(index)] = (p_page)->unit[(index)]
@@ -224,9 +225,69 @@ static inline int dec_used_ref(PAGE *pt) {
     }
 }
 
-
 class MEM {
     friend class State;
+public:
+    class Itaddress {
+    private:
+        solver& m_solver;
+        context& m_ctx;
+        Z3_ast m_addr;
+        Z3_ast last_avoid_addr;
+        UShort m_nbit;
+        std::vector<Z3_model> v_model;
+    public:
+        inline Itaddress(solver& s, Z3_ast addr) :m_ctx(m_solver.ctx()), m_solver(s), m_addr(addr), m_nbit(Z3_get_bv_sort_size(m_ctx, Z3_get_sort(m_ctx, m_addr))) {
+            Z3_inc_ref(m_ctx, m_addr);
+            m_solver.push();
+            Z3_ast so = Z3_mk_bvugt(m_ctx, m_addr, m_ctx.bv_val(1ull, m_nbit));
+            Z3_inc_ref(m_ctx, so);
+            Z3_solver_assert(m_ctx, m_solver, so);
+            Z3_dec_ref(m_ctx, so);
+            v_model.reserve(20);
+        }
+
+        inline Itaddress() :m_ctx(static_cast<context&>(*(context*)0)), m_solver(static_cast<solver&>(*(solver*)0)) { /*fake obj*/ }
+
+        inline bool operator!=(const Itaddress& src)
+        {
+            return Z3_solver_check(m_ctx, m_solver) == Z3_L_TRUE;
+        }
+
+        inline void operator++()
+        {
+            Z3_ast eq = Z3_mk_eq(m_ctx, m_addr, last_avoid_addr);
+            Z3_inc_ref(m_ctx, eq);
+            Z3_ast neq = Z3_mk_not(m_ctx, eq);
+            Z3_inc_ref(m_ctx, neq);
+            Z3_solver_assert(m_ctx, m_solver, neq);
+            Z3_dec_ref(m_ctx, eq);
+            Z3_dec_ref(m_ctx, neq);
+            Z3_dec_ref(m_ctx, last_avoid_addr);
+        }
+
+        inline Vns operator*()
+        {
+            Z3_model m_model = Z3_solver_get_model(m_ctx, m_solver); vassert(m_model);
+            Z3_model_inc_ref(m_ctx, m_model);
+            v_model.emplace_back(m_model);
+            Z3_ast r = 0;
+            bool status = Z3_model_eval(m_ctx, m_model, m_addr, /*model_completion*/false, &r);
+            Z3_inc_ref(m_ctx, r);
+            last_avoid_addr = r;
+            Z3_ast_kind rkind = Z3_get_ast_kind(m_ctx, r);
+            if (rkind != Z3_NUMERAL_AST) { 
+                vassert(0); 
+            }
+            return Vns(m_ctx, r, m_nbit);
+        }
+        inline ~Itaddress() {
+            if ((context*)(&m_ctx) != nullptr) {
+                m_solver.pop();
+                for (auto m : v_model) Z3_model_dec_ref(m_ctx, m);
+            }
+        }
+    };
 private:
     std::hash_map<Addr64, Register<0x1000>*> mem_change_map;
     Bool need_record;
@@ -234,9 +295,9 @@ public:
     PML4T **CR3;
     UInt user;
     Z3_context m_ctx;
-    solver *m_solv;
-    MEM(solver *so, context * ctx, Bool _need_record) :
-        m_solv(so),
+    State &m_state;
+    MEM(State &so, context * ctx, Bool _need_record) :
+        m_state(so),
         m_ctx(*ctx),
         need_record(_need_record)
     {
@@ -245,8 +306,8 @@ public:
         memset(*(this->CR3), 0, sizeof(PML4T));
         this->user = newDifUser();
     }
-    MEM(solver *so, MEM &father_mem, context * ctx, Bool _need_record) :
-        m_solv(so),
+    MEM(State& so, MEM &father_mem, context * ctx, Bool _need_record) :
+        m_state(so),
         m_ctx(*ctx),
         need_record(_need_record)
     {
@@ -498,6 +559,11 @@ public:
         return GETPAGE((ULong)address);
     }
 
+    
+    Itaddress addr_begin(solver& s, Z3_ast addr) { return Itaddress(s, addr); }
+
+    Itaddress addr_end() { return Itaddress(); }
+
     // ty  IRType || n_bits
     template<IRType ty>
     inline Vns Iex_Load(ADDR address)
@@ -615,12 +681,11 @@ public:
 
     template<IRType ty>
     inline Vns Iex_Load(Z3_ast address) {
-        std::vector<Z3_ast> saddrs;
-        eval_all(saddrs, *m_solv, address);
-        Z3_ast ast_address = address;
-
-        auto it = saddrs.begin();
-        auto end = saddrs.end();
+        clock_t start, finish;
+        Itaddress it = this->addr_begin(m_state.solv, address);
+        Itaddress end = this->addr_end();
+        start = clock();
+        vassert(it != end);
         uint64_t Z3_RE;
         if (!Z3_get_numeral_uint64(m_ctx, *it, &Z3_RE)) vassert(0);
         Vns data = Iex_Load<ty>(Z3_RE);
@@ -637,12 +702,20 @@ public:
             Z3_inc_ref(m_ctx, ift);
             Z3_dec_ref(m_ctx, reast);
             Z3_dec_ref(m_ctx, eq);
-            Z3_dec_ref(m_ctx, addr);
             reast = ift;
             it++;
+        };
+        finish = clock();
+        if (((finish - start) / CLOCKS_PER_SEC) > 0.2) {
+            Vns part = m_state.get_int_const(data.bitn);
+            m_state.from.emplace_back(Vns(m_ctx, reast, no_inc{}).simplify());
+            m_state.to.emplace_back(part);
+            return part;
         }
-        return Vns(m_ctx, reast, no_inc {});
+        return Vns(m_ctx, reast, no_inc{});
     }
+
+
 
     inline Vns Iex_Load(Z3_ast address, IRType ty) {
         switch (ty) {
@@ -731,52 +804,42 @@ public:
 
     template<typename DataTy>
     inline void Ist_Store(Z3_ast address, DataTy data) {
-        std::vector<Z3_ast> saddrs;
-        if (eval_all(saddrs, *m_solv, address) > 1) {
-            for (auto addr : saddrs) {
-                uint64_t Z3_RE;
-                if (!Z3_get_numeral_uint64(m_ctx, addr, &Z3_RE)) vassert(0);
-                auto oData = Iex_Load<(IRType)(sizeof(DataTy) << 3)>(Z3_RE);
-                auto eq = Z3_mk_eq(m_ctx, address, addr);
-                Z3_inc_ref(m_ctx, eq);
-                auto n_Data = Z3_mk_ite(m_ctx, eq, Vns(m_ctx, data), oData);
-                Z3_inc_ref(m_ctx, n_Data);
-                Ist_Store<(IRType)(sizeof(DataTy) << 3)>(Z3_RE, n_Data);
-                Z3_dec_ref(m_ctx, n_Data);
-                Z3_dec_ref(m_ctx, eq);
-                Z3_dec_ref(m_ctx, addr);
-            }
-        }
-        else {
-            uint64_t Z3_RE;
-            if (!Z3_get_numeral_uint64(m_ctx, saddrs[0], &Z3_RE)) vassert(0);
-            Ist_Store((ADDR)Z3_RE, data);
+        Itaddress it = this->addr_begin(m_state.solv, address);
+        Itaddress end = this->addr_end();
+        uint64_t Z3_RE;
+        while (it != end) {
+            auto addr = *it;
+            if (!Z3_get_numeral_uint64(m_ctx, addr, &Z3_RE)) vassert(0);
+            auto oData = Iex_Load<(IRType)(sizeof(DataTy) << 3)>(Z3_RE);
+            auto eq = Z3_mk_eq(m_ctx, address, addr);
+            Z3_inc_ref(m_ctx, eq);
+            auto n_Data = Z3_mk_ite(m_ctx, eq, Vns(m_ctx, data), oData);
+            Z3_inc_ref(m_ctx, n_Data);
+            Ist_Store<(IRType)(sizeof(DataTy) << 3)>(Z3_RE, n_Data);
+            Z3_dec_ref(m_ctx, n_Data);
+            Z3_dec_ref(m_ctx, eq);
+            it++;
         }
     }
 
     //n_bit
     template<unsigned int bitn>
     inline void Ist_Store(Z3_ast address, Z3_ast data) {
-        std::vector<Z3_ast> saddrs;
-        if (eval_all(saddrs, *m_solv, address) > 1) {
-            for (auto addr : saddrs) {
-                uint64_t Z3_RE;
-                if (!Z3_get_numeral_uint64(m_ctx, addr, &Z3_RE)) vassert(0);
-                auto oData = Iex_Load<(IRType)bitn>(Z3_RE);
-                auto eq = Z3_mk_eq(m_ctx, address, addr);
-                Z3_inc_ref(m_ctx, eq);
-                auto ndata = Z3_mk_ite(m_ctx, eq, data, oData);
-                Z3_inc_ref(m_ctx, ndata);
-                Ist_Store<bitn>(Z3_RE, ndata);
-                Z3_dec_ref(m_ctx, ndata);
-                Z3_dec_ref(m_ctx, eq);
-                Z3_dec_ref(m_ctx, addr);
-            }
-        }
-        else {
-            uint64_t Z3_RE;
-            if (!Z3_get_numeral_uint64(m_ctx, saddrs[0], &Z3_RE)) vassert(0);
-            Ist_Store<bitn>((ADDR)Z3_RE, data);
+        Itaddress it = this->addr_begin(m_state.solv, address);
+        Itaddress end = this->addr_end();
+        uint64_t Z3_RE;
+        while (it != end) {
+            auto addr = *it;
+            if (!Z3_get_numeral_uint64(m_ctx, addr, &Z3_RE)) vassert(0);
+            auto oData = Iex_Load<(IRType)bitn>(Z3_RE);
+            auto eq = Z3_mk_eq(m_ctx, address, addr);
+            Z3_inc_ref(m_ctx, eq);
+            auto n_Data = Z3_mk_ite(m_ctx, eq, Vns(m_ctx, data), oData);
+            Z3_inc_ref(m_ctx, n_Data);
+            Ist_Store<bitn>(Z3_RE, n_Data);
+            Z3_dec_ref(m_ctx, n_Data);
+            Z3_dec_ref(m_ctx, eq);
+            it++;
         }
     }
 

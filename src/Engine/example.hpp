@@ -12,6 +12,7 @@ using namespace z3;
 
 
 
+
 /**
    Demonstration of how Z3 can be used to prove validity of
    De Morgan's Duality Law: {e not(x and y) <-> (not x) or ( not y) }
@@ -58,7 +59,9 @@ void find_model_example1() {
         func_decl v = m[i];
         // this problem contains only constants
         assert(v.arity() == 0); 
-        std::cout << v.name() << " = " << m.get_const_interp(v) << "\n";
+
+
+        std::cout  << v.name() << " = " << m.get_const_interp(v) << "\n";
     }
     // we can evaluate expressions in the model.
     std::cout << "x + y + 1 = " << m.eval(x + y + 1) << "\n";
@@ -705,6 +708,7 @@ void tactic_example7() {
     goal subgoal = r[0];
     for (unsigned i = 0; i < subgoal.size(); i++) {
         s.add(subgoal[i]);
+        std::cout << subgoal[i] << "\n";
     }
     std::cout << s.check() << "\n";
     model m = s.get_model();
@@ -1195,6 +1199,7 @@ void mk_model_example() {
     // add assignment to model
     m.add_const_interp(a_decl, zero_numeral);
     m.add_const_interp(b_decl, one_numeral);
+    std::cout << m << std::endl;
 
     // evaluate a + b < 2 in the model
     std::cout << m.eval(a + b < 2)<< std::endl;

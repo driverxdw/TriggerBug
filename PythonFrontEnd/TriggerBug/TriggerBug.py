@@ -143,7 +143,7 @@ class State(object):
     def hook_add(self, Address, callBackFunc, length=0):
         cb = ctypes.cast(hook_cb_ctypes(_Hook_Server), hook_cb_ctypes)
         _call_back[Address] = [callBackFunc, cb, length]
-        EngineLib.hook_add(self.State_obj, Address, cb)
+        EngineLib.TB_hook_add(self.State_obj, Address, cb)
 
     def hook_pass_code(self, pass_length):
         EngineLib.TB_state_delta(self.State_obj, pass_length)
@@ -341,6 +341,10 @@ class State(object):
 
     def add(self, Z3assert, ToF):
         EngineLib.TB_state_add_assert(self.State_obj, Z3assert.ast, ToF)
+
+    def cast(self, value):
+        ast = EngineLib.TB_state_cast(self.State_obj, value.ast)
+        return z3._to_expr_ref(ast, self.ctx)
 
     def __getattr__(self, name):
         global Guest_Arch

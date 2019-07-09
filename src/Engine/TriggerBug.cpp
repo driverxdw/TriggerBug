@@ -37,6 +37,32 @@ LARGE_INTEGER   beginPerformanceCount_global = { 0 };
 LARGE_INTEGER   closePerformanceCount_global = { 0 };
 
 
+/*Legal parameters are :
+  ctrl_c(bool) (default: true)
+  dump_benchmarks(bool) (default: false)
+  dump_models(bool) (default: false)
+  elim_01(bool) (default: true)
+  enable_sat(bool) (default: true)
+  enable_sls(bool) (default: false)
+  maxlex.enable(bool) (default: true)
+  maxres.add_upper_bound_block(bool) (default: false)
+  maxres.hill_climb(bool) (default: true)
+  maxres.max_core_size(unsigned int) (default: 3)
+  maxres.max_correction_set_size(unsigned int) (default: 3)
+  maxres.max_num_cores(unsigned int) (default: 4294967295)
+  maxres.maximize_assignment(bool) (default: false)
+  maxres.pivot_on_correction_set(bool) (default: true)
+  maxres.wmax(bool) (default: false)
+  maxsat_engine(symbol) (default: maxres)
+  optsmt_engine(symbol) (default: basic)
+  pb.compile_equality(bool) (default: false)
+  pp.neat(bool) (default: true)
+  priority(symbol) (default: lex)
+  rlimit(unsigned int) (default: 0)
+  solution_prefix(symbol) (default:)
+  timeout(unsigned int) (default: 4294967295)
+*/
+
 unsigned char * _n_page_mem(void *pap) {
     return ((State*)(((Pap*)(pap))->state))->mem.get_next_page(((Pap*)(pap))->guest_addr);
 }
@@ -62,11 +88,6 @@ std::string replace(const char* pszSrc, const char* pszOld, const char* pszNew)
     return strContent;
 }
 
-//bool branch_check_avoid(ADDR _addr) {
-//    for (auto )
-//    return avoid_branch_oep.(_addr) == avoid_branch_oep.end();
-//
-//}
 
 inline unsigned int assumptions_check(solver& solv, int n_assumptions, Z3_ast *assumptions) {
     std::vector<Z3_model> mv;
@@ -85,7 +106,7 @@ inline unsigned int assumptions_check(solver& solv, int n_assumptions, Z3_ast *a
     return b;
 }
 
-inline unsigned int eval_all(std::vector<Z3_ast>& result, solver& solv, Z3_ast nia) {
+inline int eval_all(std::vector<Z3_ast>& result, solver& solv, Z3_ast nia) {
     //std::cout << nia << std::endl;
     //std::cout << state.solv.assertions() << std::endl;
     result.reserve(20);
@@ -94,16 +115,7 @@ inline unsigned int eval_all(std::vector<Z3_ast>& result, solver& solv, Z3_ast n
     mv.reserve(20);
     register Z3_context ctx = solv.ctx();
     for (int nway = 0; ; nway++) {
-        Z3_lbool b;
-        try {
-            b = Z3_solver_check(ctx, solv);
-        }
-        catch (...) {
-            Z3_error_code e = Z3_get_error_code(ctx);
-            if (e != Z3_OK)
-                throw (Z3_get_error_msg(ctx, e));
-            throw e;
-        }
+        Z3_lbool b = Z3_solver_check(ctx, solv);
         if (b == Z3_L_TRUE) {
             Z3_model m_model = Z3_solver_get_model(ctx, solv);
             Z3_model_inc_ref(ctx, m_model);
@@ -140,7 +152,6 @@ inline unsigned int eval_all(std::vector<Z3_ast>& result, solver& solv, Z3_ast n
 }
 
 
-
 #define pyAndC_Def(type)                                                        \
 template<class T,class toTy>                                                    \
 inline PyObject* cvector2list_##type(T cvector)                                 \
@@ -169,14 +180,16 @@ pyAndC_Def(Long)
 
 extern "C"
 {
-    DLLDEMO_API State *     TB_top_state(PyObject *base, Super superState_cb, State_Tag(*func_cb)(State *, IRJumpKind), char *filename, Addr64 oep, Bool need_record);
-    DLLDEMO_API PyObject *  TB_cState2pState(State * s) { return s->base; }
+    DLLDEMO_API State *     TB_top_state            (PyObject *base, Super superState_cb, State_Tag(*func_cb)(State *, IRJumpKind), char *filename, Addr64 oep, Bool need_record);
+    DLLDEMO_API PyObject*   TB_cState2pState        (State* s);
     DLLDEMO_API State *     TB_state_fork           (PyObject *base, State * father, Addr64 oep);
     DLLDEMO_API Addr64      TB_state_guest_start    (State *s);
     DLLDEMO_API Addr64      TB_state_guest_start_ep (State *s);
     DLLDEMO_API State_Tag   TB_state_status         (State *s);
     DLLDEMO_API Z3_solver   TB_state_solver         (State *s);
     DLLDEMO_API void        TB_state_add_assert     (State *s, Z3_ast assert, Bool ToF);
+    DLLDEMO_API Z3_ast      TB_state_cast           (State* s, Z3_ast value);
+    DLLDEMO_API void        TB_replace_add          (State* s, Storage st, Addr64 addr, Addr64 r_offset, IRType ty);
     DLLDEMO_API void        TB_state_start          (State *s);
     DLLDEMO_API void        TB_state_compress       (State *s, Addr64 Target_Addr, State_Tag tag, PyObject* avoid);
     DLLDEMO_API PyObject*   TB_state_branch         (State *s);
@@ -257,7 +270,7 @@ State *     TB_top_state(
 }
 HMODULE     TB_Z3_Model_Handle() { return  GetModuleHandle(TEXT("libz3.dll")); }
 State *     TB_state_fork(PyObject *base, State * father, Addr64 oep) { return new State(father, oep, base); }
-PyObject *  TB_cState2pState(State * s);
+PyObject *  TB_cState2pState(State * s) { return s->base; }
 Addr64      TB_state_guest_start(State *s) { return s->get_guest_start(); }
 Addr64      TB_state_guest_start_ep(State *s) { return s->get_guest_start_ep(); }
 State_Tag   TB_state_status(State *s) { return s->status; }
@@ -284,12 +297,31 @@ void        TB_hook_add(State *s, Addr64 addr, CallBack func) {
         CallBackDict[addr].cb = func;
     }
 }
+
+void        TB_replace_add(State* state, Storage s, Addr64 addr, Addr64 r_offset, IRType ty) {
+    if (ReplaceDict.find(addr) == ReplaceDict.end()) {
+        if (CallBackDict.find(addr) == CallBackDict.end()) {
+            TB_hook_add(state, addr, CallBack(0));
+        }
+        std::vector<Hook_Replace> v;
+        v.emplace_back(Hook_Replace{ s ,addr,r_offset, ty });
+        ReplaceDict[addr] = v;
+    }
+    else {
+        ReplaceDict.find(addr)->second.emplace_back(Hook_Replace{ s ,addr, r_offset, ty });
+    }
+}
+
 ULong       TB_mem_map(State *s, Addr64 address, ULong length) { return s->mem.map(address, length); }
 ULong       TB_mem_unmap(State *s, Addr64 address, ULong length) { return s->mem.unmap(address, length); }
 Z3_solver   TB_state_solver(State *s) { return s->solv; }
 Z3_context  TB_state_ctx(State *s) { return *s; };
 void        TB_state_add_assert(State *s, Z3_ast assert, Bool ToF) { s->add_assert(Vns(s->m_ctx, assert, 1), ToF); }
-
+Z3_ast      TB_state_cast(State* s, Z3_ast value) {
+    auto re = s->cast(Vns(s->m_ctx, value));
+    Z3_inc_ref(s->m_ctx, re);
+    return re;
+};
 
 void regs_r_write1(State *s, UShort offset, UChar     value) { s->regs.Ist_Put(offset, value); }
 void regs_r_write2(State *s, UShort offset, UShort    value) { s->regs.Ist_Put(offset, value); }
@@ -418,53 +450,94 @@ State_Tag avoid_ret2(State *s) {
     Vns guest_EDX = reg.guest_EDX;
     Vns guest_EBX = reg.guest_EBX;
     std::cout << guest_EDX<< guest_EBX << std::endl;
-    return Running;
-}
-
-
-
-State_Tag success_ret(State *s) {
-    s->solv.push();
-    auto esp = s->regs.Iex_Get<Ity_I32>(24);
-    for (int i = 13; i <= 16; i++) {
-        auto al = s->mem.Iex_Load<Ity_I8>(esp + 92 + i);
-        auto bl = s->mem.Iex_Load<Ity_I8>(esp + 8 + i);
-        //s->add_assert(al == 0, 1);
-        //s->add_assert(bl == 0, 1);
-        s->add_assert_eq(al, bl);
-    }
-    s->add_assert((s->mem.Iex_Load<Ity_I8>(esp + 92 + 0) == 8) && (s->mem.Iex_Load<Ity_I8>(esp + 8 + 0) == 8), 1);
-    if (s->solv.check() == sat) {
-        vex_printf("sat");
-        auto m = s->solv.get_model();
-        std::cout << m << std::endl;
-    }
-    else {
-        vex_printf("unsat??????????\n\n");
-    }
-
-
-    s->solv.pop();
-    s->solv.push();
-    for (int i = 0; i <= 16; i++) {
-        auto al = s->mem.Iex_Load<Ity_I8>(esp + 92 + i);
-        auto bl = s->mem.Iex_Load<Ity_I8>(esp + 8 + i);
-        s->add_assert_eq(al, bl);
-    }
-    if (s->solv.check() == sat) {
-        vex_printf("sat");
-        auto m = s->solv.get_model();
-        std::cout << m << std::endl;
-    }
-    else {
-        vex_printf("unsat??????????\n\n");
-    }
-
-
-    s->solv.pop();
-
     return Death;
 }
+
+
+
+State_Tag success_ret2(State* s) {
+    s->solv.push();
+    auto ecx = s->regs.Iex_Get<Ity_I32>(12);
+    auto edi = s->regs.Iex_Get<Ity_I32>(36);
+
+    for (int i = 0; i < 44; i++) {
+        auto al = s->mem.Iex_Load<Ity_I8>(ecx + i);
+        auto bl = s->mem.Iex_Load<Ity_I8>(edi + i);
+        s->add_assert_eq(s->cast(al), s->cast(bl));
+    }
+    vex_printf("checking\n\n");
+    auto dfdfs = s->solv.check();
+    if (dfdfs == sat) {
+        vex_printf("sat");
+        auto m = s->solv.get_model();
+        std::cout << m << std::endl;
+    }
+    else {
+        vex_printf("unsat??????????\n\n%d", dfdfs);
+    }
+    s->solv.pop();
+    return Death;
+}
+
+
+
+State_Tag success_ret(State* s) {
+    context& c = *s;
+    s->solv.push();
+    auto ecx = s->regs.Iex_Get<Ity_I32>(12);
+    auto edi = s->regs.Iex_Get<Ity_I32>(36);
+    auto rbp = s->regs.Iex_Get<Ity_I32>(28);
+    auto enc_addr = s->mem.Iex_Load<Ity_I32>(rbp + 0xc);
+
+    char right[] = { 0x9c, 0xa9, 0xdb, 0x1e, 0xc8, 0x2a, 0x0f, 0x76, 0x8d, 0x10, 0x1f, 0x75, 0x8c, 0x1d, 0xe0, 0x13, 0x30, 0x2b, 0xf8, 0x89, 0x25, 0x43, 0x04, 0xf5, 0x6d, 0x2b, 0x37, 0xf9, 0xb5, 0xe9, 0x7a, 0xea };
+
+    for (int i = 0; i < 16; i++) {
+        auto al = s->mem.Iex_Load<Ity_I8>(enc_addr + i);
+        //s->add_assert_eq(s->cast(al), Vns(s->m_ctx, right[i]));
+        s->add_assert_eq(al, Vns(s->m_ctx, right[i]));
+    }
+    vex_printf("checking\n\n");
+    auto dfdfs = s->solv.check();
+    if (dfdfs == sat) {
+        vex_printf("sat");
+        auto m = s->solv.get_model();
+        std::cout << m << std::endl;
+
+        auto size = s->from.size();
+        for (int idx = size - 1; idx >= 0; idx--) {
+            Z3_model_inc_ref(s->m_ctx, m);
+            Vns d = m.eval(expr(s->m_ctx, s->to[idx]));
+
+            for (unsigned i = 0; i < m.size(); i++) {
+                func_decl v = m[i];
+                // this problem contains only constants
+                assert(v.arity() == 0);
+                expr e(c, Z3_mk_const(c, v.name(), v.range()));
+                std::cout  << e << " = " << m.get_const_interp(v) << "\n";
+                Vns l = m.get_const_interp(v);
+                Vns r = e;
+                s->add_assert_eq(l, r);
+            }
+
+
+            //s->add_assert_eq(d, s->from[idx]);
+
+             auto dfdfs = s->solv.check();
+             std::cout << dfdfs << std::endl;
+             m = s->solv.get_model();
+             std::cout << m << std::endl;
+        }
+
+        auto dfdfs = s->solv.check();
+        std::cout << m << std::endl;
+    }
+    else {
+        vex_printf("unsat??????????\n\n%d", dfdfs);
+    }
+    s->solv.pop();
+    return Death;
+}
+
 
 
 //#include "Engine/Z3_Target_Call/Guest_Helper.hpp"
@@ -484,14 +557,54 @@ Vns flag_limit(Vns &flag) {
 
 #include "example.hpp"
 
+int dfdfdfsdx = 0;
+State_Tag sub_401070(State* s) {
+    auto rbp = s->regs.Iex_Get<Ity_I32>(28);
+    auto enc_addr = s->mem.Iex_Load<Ity_I32>(rbp + 0xc);
+
+    for (int i = 0; i < 16; i++) {
+        std::stringstream x_name;
+        x_name << "idx_" << dfdfdfsdx++;
+        z3::context& ctx = *s;
+        auto fgf = (Vns)ctx.bv_const(x_name.str().c_str(), 8);
+        s->mem.Ist_Store(enc_addr + i, fgf);
+    }
+    s->delta = 5;
+    return Running;
+}
+
+
 
 
 int main() {
 
     State state(INIFILENAME, NULL, True);
-    /*helper::UChar_ fgb(state.mem, 0x76FB6000);
-    *fgb = 0xc3;*/
-    //testz3();
+    context& c = state; 
+    /*
+    TB_replace_add(&state, TRRegister, 0x401249, IR_ebx, Ity_I32);
+    TB_replace_add(&state, TRRegister, 0x401249, IR_ecx, Ity_I32);
+    TB_replace_add(&state, TRRegister, 0x401249, IR_edx, Ity_I32);
+    TB_replace_add(&state, TRRegister, 0x401249, IR_eax, Ity_I32);*/
+
+
+/*
+    expr flag = c.bv_const("flag", 8);
+    expr x = c.bv_const("x", 8);
+    expr y = c.bv_const("y", 8);
+    expr z = c.bv_const("z", 8);
+    x = flag * flag ^ flag;
+    expr crypto = 0x5 + (z * x ^ 45);
+
+    state.from.emplace_back(x);
+    state.to.emplace_back(z);
+
+    state.cast(crypto);*/
+
+
+
+
+
+   //testz3();
 
 
     //Regs::AMD64 reg(state);
@@ -504,8 +617,8 @@ int main() {
         Vns FLAG = ((context&)state).bv_const(buff, 8);
         state.mem.Ist_Store(eax + i , FLAG);
 
-        auto ao2 = FLAG >=30 && FLAG < 128;
-        state.add_assert( ao2, True);
+        auto ao2 = FLAG >=5;
+        state.add_assert(ao2, True);
 
         
         //state.add_assert(FLAG < 128, True);
@@ -513,10 +626,11 @@ int main() {
         //state.add_assert(flag_limit(FLAG), True);
     }
 
-    TB_hook_add(&state, 0x040272B, success_ret);
-    TB_hook_add(&state, 0x00402726, avoid_ret);
-    TB_hook_add(&state, 0x0402673, avoid_ret2);
-
+    TB_hook_add(&state, 0x0040140C, success_ret);
+    //TB_hook_add(&state, 0x00401165, chk);
+    
+    
+    
     /*
     //TB_hook_add(&state, 0x0CE13EA, inceax);
     

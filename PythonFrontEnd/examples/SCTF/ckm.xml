@@ -34,7 +34,7 @@
 	<VexArch>0x401</VexArch>
 	<VexArchSystem>win</VexArchSystem>
 	<MaxThreadsNum>16</MaxThreadsNum>
-	<MemoryDumpPath>C:\Users\bibi\Downloads\24d02df55b0e4f9ab941e81e536cf951\creakme.exe.dump</MemoryDumpPath>
+	<MemoryDumpPath>C:\Users\bibi\Desktop\TriggerBug\PythonFrontEnd\examples\SCTF\24d02df55b0e4f9ab941e81e536cf951\creakme.exe.dump</MemoryDumpPath>
 	<!-- <GuestStartAddress>0x444444</GuestStartAddress> -->
 	<GuestStartAddress>0</GuestStartAddress>
 	<RegsIpOffset>68</RegsIpOffset>
@@ -48,7 +48,7 @@
 	
 	<DEBUG>
 		<NEED_CHECK>0</NEED_CHECK>
-		<TraceIrAddrress>0x402673</TraceIrAddrress>
+		<TraceIrAddrress>0x40114</TraceIrAddrress>
 		<TraceState>1</TraceState>
 		<TraceJmp>1</TraceJmp>
 	</DEBUG>
